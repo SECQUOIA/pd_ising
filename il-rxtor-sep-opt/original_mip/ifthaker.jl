@@ -1,3 +1,8 @@
+"""
+Reference 
+    Iftakher A, Hasan MMF. Exploring Quantum Optimization for Computer-aided Molecular and Process Design. Systems and Control Transactions 3:292-299 (2024) https://doi.org/10.69997/sct.143809
+"""
+
 @doc raw"""
 """
 struct Ifthaker{T} <: ToQUBO.Encoding.IntervalVariableEncodingMethod end

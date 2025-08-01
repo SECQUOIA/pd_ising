@@ -16,9 +16,7 @@ This project implements and compares multiple optimization approaches for the de
 
 This work is based on the research paper:
 
-> Iftakher, A., & Hasan, M. M. F. (2024). Exploring quantum optimization for computer-aided Molecular and Process Design. Systems and Control Transactions, 3, 292–299.
-> 
-> https://psecommunity.org/LAPSE:2024.1540
+> Iftakher A, Hasan MMF. Exploring Quantum Optimization for Computer-aided Molecular and Process Design. Systems and Control Transactions 3:292-299 (2024) https://doi.org/10.69997/sct.143809
 
 ## Project Structure
 
@@ -59,7 +57,7 @@ il-rxtor-sep-opt/
 #### Automated Setup (Recommended)
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone <https://github.com/SECQUOIA/pd_ising.git>
 cd il-rxtor-sep-opt
 
 # Run the automated setup script
