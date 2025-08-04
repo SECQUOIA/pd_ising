@@ -3,7 +3,7 @@ This script is a Python implementation of the Ionic Liquid Selection Program, Ju
 
 The problem is adapted from the following source:
 
-    Iftakher, A., & Hasan, M. M. F. (2024). Exploring quantum optimization for computer-aided Molecular and Process Design. Systems and Control Transactions, 3, 292–299. https://psecommunity.org/LAPSE:2024.1540
+    Iftakher A, Hasan MMF. Exploring Quantum Optimization for Computer-aided Molecular and Process Design. Systems and Control Transactions 3:292-299 (2024) https://doi.org/10.69997/sct.143809
 
 """
 
