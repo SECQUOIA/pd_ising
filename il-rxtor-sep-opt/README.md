@@ -116,6 +116,37 @@ The framework provides comprehensive analysis tools:
 - **Scalability Analysis**: Performance with problem size
 - **Visualization**: Interactive plots and result summaries
 
+## Contributing
+
+We welcome pull requests with extensions and improvements! This project is designed to be extensible for various optimization approaches and quantum computing applications.
+
+### Areas for Extensions
+
+- **New Optimization Solvers**: Integration with additional quantum annealers or classical solvers
+- **Alternative Problem Formulations**: Different mathematical formulations for reactor-separator optimization
+- **Enhanced Analysis Tools**: Additional visualization and performance analysis capabilities
+- **Multi-objective Optimization**: Extensions to handle multiple competing objectives
+- **Real-time Optimization**: Integration with real-time process control systems
+- **Machine Learning Integration**: Hybrid approaches combining optimization with ML techniques
+
+### How to Contribute
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-extension`)
+3. Implement your extension with appropriate documentation
+4. Add tests if applicable
+5. Update the documentation to reflect your changes
+6. Commit your changes (`git commit -m 'Add your extension description'`)
+7. Push to the branch (`git push origin feature/your-extension`)
+8. Open a Pull Request with a clear description of your extension
+
+### Code Style
+
+- Follow the existing code style and conventions
+- Add comprehensive docstrings for new functions
+- Include example usage in Jupyter notebooks when appropriate
+- Update dependency files if new packages are required
+
 ## Documentation
 - **DEPENDENCIES.md**: Detailed dependency information and setup
 - **Jupyter Notebooks**: Interactive examples and tutorials
@@ -135,3 +166,4 @@ For questions and support:
 - Check the documentation in `DEPENDENCIES.md`
 - Review the Jupyter notebooks for examples
 - Open an issue for bugs or feature requests
+

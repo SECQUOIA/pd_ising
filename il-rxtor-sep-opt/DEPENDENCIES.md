@@ -11,7 +11,6 @@ The Julia dependencies are managed through `Project.toml` and `Manifest.toml` fi
 - **CSV**: Data import/export functionality
 - **DWave**: D-Wave quantum computing interface
 - **DataFrames**: Data manipulation and analysis
-- **GAMS**: General Algebraic Modeling System interface
 - **Gurobi**: Mathematical optimization solver interface
 - **JSON**: JSON data format handling
 - **JuMP**: Julia for Mathematical Programming
@@ -155,3 +154,4 @@ pip install -r requirements.txt
 - Check the individual package documentation for specific issues
 - Ensure all dependencies are compatible with your system architecture
 - Consider using the exact versions specified in the lock files for reproducible environments 
+- Please raise issues and/or create PRs as needed! 
