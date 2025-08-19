@@ -1,0 +1,20 @@
+Flow,From,To,Flow Cost,uo
+f00,n00,n01,0,none
+f01,n01,n02,0.0289,PFR
+f02,n01,n02,0.0399,CSTR
+f03,n01,n02,0.1225,batch
+f04,n02,n03,0,none
+f05,n03,n04,-0,noholdT
+f06,n03,n04,4.959,holdT
+f07,n04,n05,0,none
+f08,n05,n06,6.193,PFR
+f09,n05,n06,9.717,CSTR
+f10,n05,n06,3.352,batch
+f11,n06,n07,6.163,batch
+f12,n07,n08,0,none
+f13,n08,n09,0.739,cont1
+f14,n08,n09,0.84,cont2
+f15,n08,n09,1.271,cont3
+f16,n07,n10,6.99,batchU
+f17,n09,n10,1.333,holdT
+f18,n10,n11,0,none
