@@ -154,31 +154,6 @@ class PyomoModel:
             doc="flow conservation constraints",
         )
         
-        # Disjunction Constraints
-        def disjunction_rule(model, node):
-            return (
-                sum(model.f[flow] for flow in disj[node] if flow in flow_with_uo) <= 1
-            )
-        
-        model.disjunctions = pyo.ConstraintList(doc="disjunction constraints")
-        
-        # Additional disjunction for flow f17
-        model.disjunctions.add(model.f["f17"] + model.f["f16"] <= 1)
-        
-        simple_disj = ["n01", "n03", "n05"]
-        
-        for node in disj.keys():
-            if node in simple_disj:
-                # Only choose one unit at each disjunction
-                model.disjunctions.add(disjunction_rule(model, node))
-            elif node == "n07":
-                # At node n07, only one of the flows f13, f14, f15, f16 can be active
-                # This accounts for the disjunctions at node n08 as well
-                model.disjunctions.add(
-                    model.f["f13"] + model.f["f14"] + model.f["f15"] + model.f["f16"]
-                    <= 1
-                )
-        
         # Continuous to Batch Constraint
         # If going from continuous process to batch process, a hold tank is added to the flowsheet
         model.continuous_to_batch = pyo.ConstraintList(
@@ -557,8 +532,8 @@ def main(flowsheet_data_path: Optional[str] = None,
 
 if __name__ == "__main__":
     # Run the optimization once, gurobi returns the global optimal solution
-    # main(max_iterations=1,save=False) 
+    # main(max_iterations=1,tee=True, save=False) 
 
-    main(max_iterations=36, tee=True, save=True) 
+    main(max_iterations=3, tee=True, save=True) 
 
     
