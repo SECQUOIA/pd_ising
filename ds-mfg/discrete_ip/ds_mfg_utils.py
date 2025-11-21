@@ -17,7 +17,7 @@ import neal
 from dwave.system import DWaveSampler, EmbeddingComposite, FixedEmbeddingComposite
 from pprint import pprint
 from collections import Counter
-from typing import Dict, Tuple, Any
+from typing import Dict, Optional, Tuple, Any
 import os
 from datetime import datetime
 import json
@@ -643,7 +643,7 @@ def solve_sim_annealing(Q, Beta, save=False, output_dir="result_raw"):
 
     return simAnnSamples, execution_time
 
-def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="result_raw"):
+def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="result_raw", topology: Optional[str] = None):
     """
     Solves the QUBO model using quantum annealing and returns the samples.
 
@@ -657,6 +657,10 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         Whether to save results to files, by default False
     output_dir : str, optional
         Directory to save output files, by default "result_raw"
+    topology : str, optional
+        The topology of the D-Wave quantum annealer, by default None
+        Note: options are "pegasus", "zephyr"
+        See DWaveSampler documentation for available topologies: https://docs.ocean.dwavesys.com/en/stable/docs_dimod/reference/samplers/advanced/dwave_sampler.html#dimod.samplers.advanced.dwave_sampler.DWaveSampler
 
     Returns
     -------
@@ -668,20 +672,27 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
     # Create a binary quadratic model
     model = dimod.BinaryQuadraticModel.from_qubo(Q, offset=Beta)
 
+    # Select sampler based on topology if provided
+    base_sampler = DWaveSampler(solver=dict(topology__type=topology)) if topology else DWaveSampler()
+    system_name = base_sampler.solver.name
+
     # Time the execution of the sampling
     start = time.time()
-    DWavesampler = EmbeddingComposite(DWaveSampler())
-    DWaveSamples = DWavesampler.sample(bqm=model, num_reads=1000,
-                                       return_embedding=True,
-                                       # chain_strength=chain_strength,
-                                       # annealing_time=annealing_time
-                                       )
+    DWavesampler = EmbeddingComposite(base_sampler)
+    DWaveSamples = DWavesampler.sample(
+        bqm=model,
+        num_reads=1000,
+        return_embedding=True,
+        # chain_strength=chain_strength,
+        # annealing_time=annealing_time
+    )
     end = time.time()
 
     # Compute time to solution for the quantum annealing sampler
     execution_time = end - start
 
     print("Execution time (QAnn): ", execution_time)
+    print("System name: ", system_name) 
 
     print(DWaveSamples.info)
 
@@ -692,7 +703,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         result_dict = _serialize_sampleset_to_result_dict(
             sampleset=DWaveSamples,
             execution_time=execution_time,
-            solver_name="dwave_qpu",
+            solver_name=f"dwave_qpu_{system_name}",
             include_solutions=False
         )
         # Guarantee top-level info present even if serializer changes in future
