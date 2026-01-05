@@ -3,6 +3,10 @@ import pandas as pd
 import numpy as np
 import dimod 
 import neal
+from typing import Optional
+import os
+import json
+from datetime import datetime
 
 from dwave.system import DWaveSampler, EmbeddingComposite
 from pprint import pprint
@@ -36,7 +40,7 @@ def solve_enumerate(Q, Beta):
 
     return exactSamples
 
-def solve_sim_annealing(Q, Beta, save=False, output_dir="."):
+def solve_sim_annealing(Q, Beta, save=False, output_dir="result_raw"):
     """
     Solves the QUBO model using simulated annealing, computes the time to solution, and returns the samples.
 
@@ -49,7 +53,7 @@ def solve_sim_annealing(Q, Beta, save=False, output_dir="."):
     save : bool, optional
         Whether to save results to files, by default False
     output_dir : str, optional
-        Directory to save output files, by default "."
+        Directory to save output files, by default "result_raw"
 
     Returns
     -------
@@ -72,16 +76,20 @@ def solve_sim_annealing(Q, Beta, save=False, output_dir="."):
     print("Execution time (simAnn): ", execution_time) 
     
     if save:
-        import os
         os.makedirs(output_dir, exist_ok=True)
-        simAnnSamples.to_pandas_dataframe().to_csv(os.path.join(output_dir, 'SA_results.csv'))
-        simAnnSamples.info['tts_tictoc'] = execution_time
-        with open(os.path.join(output_dir, 'SA_run_info.txt'), 'w') as f:
-            pprint(simAnnSamples.info, stream=f)
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+        result_dict = _serialize_sampleset_to_result_dict(
+            sampleset=simAnnSamples,
+            execution_time=execution_time,
+            solver_name="simulated_annealing",
+            include_solutions=False
+        )
+        save_result_json(result_dict, output_dir, filename_prefix='SA_results')
 
     return simAnnSamples, execution_time
 
-def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="result_raw"):
+def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="result_raw", topology: Optional[str] = None):
     """
     Solves the QUBO model using quantum annealing and returns the samples.
 
@@ -95,6 +103,10 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         Whether to save results to files, by default False
     output_dir : str, optional
         Directory to save output files, by default "result_raw"
+    topology : str, optional
+        The topology of the D-Wave quantum annealer, by default None
+        Note: options are "pegasus", "zephyr"
+        See DWaveSampler documentation for available topologies: https://docs.ocean.dwavesys.com/en/stable/docs_dimod/reference/samplers/advanced/dwave_sampler.html#dimod.samplers.advanced.dwave_sampler.DWaveSampler
 
     Returns
     -------
@@ -105,64 +117,84 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
     """
     # Create a binary quadratic model
     model = dimod.BinaryQuadraticModel.from_qubo(Q, offset=Beta)
-    
+
+    # Select sampler based on topology if provided
+    base_sampler = DWaveSampler(solver=dict(topology__type=topology)) if topology else DWaveSampler()
+    system_name = base_sampler.solver.name
 
     # Time the execution of the sampling
     start = time.time()
-    DWavesampler = EmbeddingComposite(DWaveSampler())
-    DWaveSamples = DWavesampler.sample(bqm=model, num_reads=1000, 
-                                    return_embedding=True, 
-                                    #  chain_strength=chain_strength, 
-                                    #  annealing_time=annealing_time
-                                    )
+    DWavesampler = EmbeddingComposite(base_sampler)
+    DWaveSamples = DWavesampler.sample(
+        bqm=model,
+        num_reads=1000,
+        return_embedding=True,
+        # chain_strength=chain_strength,
+        # annealing_time=annealing_time
+    )
     end = time.time()
 
     # Compute time to solution for the quantum annealing sampler
     execution_time = end - start
 
-    print("Execution time (QAnn): ", execution_time) 
-    
+    print("Execution time (QAnn): ", execution_time)
+    print("System name: ", system_name) 
+
     print(DWaveSamples.info)
 
     if save:
-        import os
         os.makedirs(output_dir, exist_ok=True)
-        DWaveSamples.to_pandas_dataframe().to_csv(os.path.join(output_dir, 'Dwave_QA_results.csv'))
-        DWaveSamples.info['tts_tictoc'] = execution_time
-        with open(os.path.join(output_dir, 'Dwave_QA_run_info.txt'), 'w') as f:
-            pprint(DWaveSamples.info, stream=f)
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         
+        result_dict = _serialize_sampleset_to_result_dict(
+            sampleset=DWaveSamples,
+            execution_time=execution_time,
+            solver_name=f"dwave_qpu_{system_name}",
+            include_solutions=False
+        )
+        # Guarantee top-level info present even if serializer changes in future
+        if 'info' not in result_dict and hasattr(DWaveSamples, 'info') and isinstance(DWaveSamples.info, dict):
+            info_copy = dict(DWaveSamples.info)
+            info_copy.setdefault('tts_tictoc', float(execution_time))
+            result_dict['info'] = info_copy
+        save_result_json(result_dict, output_dir, filename_prefix='Dwave_QA_results')
+
     return DWaveSamples, execution_time
 
-def solve_eqc_qci(Q, beta, filename, num_sample=5, jobinfo=False, output_dir="."):
+def solve_eqc_qci(Q, beta, filename, num_sample=5, jobinfo=False, output_dir="result_raw"):
     from qci_client import QciClient
-    
+
     # Make the Q symmetric
     symQ = (Q.T/2)+Q/2
-    # Get API token from environment variable or use placeholder
-    import os
-    token = os.getenv("QCI_API_TOKEN", "YOUR_API_TOKEN_HERE")
+    
+    # Get API token from environment variable
+    token = os.getenv("QCI_API_TOKEN")
+    if not token:
+        raise ValueError(
+            "QCI_API_TOKEN environment variable not set. "
+            "Please set it with: export QCI_API_TOKEN='your-actual-token'"
+        )
     api_url = "https://api.qci-prod.com"
     qclient = QciClient(api_token=token, url=api_url)
-    
+
     qubo_data = {
-    'file_name': filename,
-    'file_config': {'qubo':{"data": symQ}}
+        'file_name': filename,
+        'file_config': {'qubo': {"data": symQ}}
     }
 
     response_json = qclient.upload_file(file=qubo_data)
 
     job_body = qclient.build_job_body(job_type="sample-qubo",
-                                  qubo_file_id=response_json['file_id'],
-                                  job_params={"device_type": "dirac-1", "num_samples": num_sample})
+                                      qubo_file_id=response_json['file_id'],
+                                      job_params={"device_type": "dirac-1", "num_samples": num_sample})
     print(f'job_body result: {job_body}')
-    
+
     job_response = qclient.process_job(job_body=job_body)
     print(f'job_response result: {job_response}')
 
     # Create a dictionary to store the QCI results
     qci_result = {}
-    
+
     # Add the beta offset to the objective value and print it
     # Note: The beta offset is added to the energies returned by the QCI API
     obj_val = job_response['results']['energies'] + beta
@@ -173,13 +205,133 @@ def solve_eqc_qci(Q, beta, filename, num_sample=5, jobinfo=False, output_dir="."
     qci_result['num_samples'] = job_body['job_submission']['device_config']['dirac-1']['num_samples']
     qci_result['execution_time'] = job_response['job_info']['job_result']['device_usage_s']   # in seconds
     qci_result['solutions'] = job_response['results']['solutions']
-    
-    if jobinfo is True:
-        return qci_result, job_body, job_response 
 
-    return qci_result   
+    os.makedirs(output_dir, exist_ok=True)
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # JSON (unified) already in correct schema for downstream
+    with open(os.path.join(output_dir, f'QCI_EQC_results_{ts}.json'), 'w') as f:
+        json.dump(qci_result, f, indent=4)
+
+    qci_result_df = sampleset_to_df(qci_result, imported=True, qci_extra=True)
+    t_qci = qci_result['execution_time']
+
+    if jobinfo is True:
+        return qci_result_df, t_qci, job_body, job_response
+    else:
+        return qci_result_df, t_qci   
+
+def _serialize_sampleset_to_result_dict(sampleset, execution_time, solver_name, include_solutions=False, extra_meta=None):
+    """
+    Convert a dimod.SampleSet into a unified JSON-serializable result dictionary.
+
+    The resulting dictionary is compatible with `sampleset_to_df(imported=True, qci_extra=True)`.
+
+    Parameters
+    ----------
+    sampleset : dimod.SampleSet
+        The sample set to serialize.
+    execution_time : float
+        Total wall-clock time to obtain the samples (seconds).
+    solver_name : str
+        Identifier for the solver, e.g., "simulated_annealing" or "dwave_qpu".
+    include_solutions : bool, optional
+        If True, include the sampled bitstrings in the output under 'solutions'.
+    extra_meta : dict, optional
+        Extra metadata to include under 'meta'.
+
+    Returns
+    -------
+    dict
+        JSON-serializable dictionary with keys: 'energy', 'num_occurrences',
+        optional 'solutions', 'num_samples', 'execution_time', 'variables', 'solver', 'meta'.
+    """
+    energies = sampleset.data_vectors['energy'].tolist()
+    num_occurrences = sampleset.data_vectors['num_occurrences'].tolist()
+
+    result_dict = {
+        'energy': energies,
+        'num_occurrences': num_occurrences,
+        'num_samples': int(sum(num_occurrences)),
+        'execution_time': float(execution_time),
+        'variables': list(map(str, sampleset.variables)),
+        'solver': str(solver_name),
+        'meta': {}
+    }
+
+    if include_solutions and hasattr(sampleset.record, 'sample'):
+        # sampleset.record.sample has shape (n_records, n_variables)
+        samples_np = sampleset.record.sample
+        # Convert to list of lists of ints (0/1)
+        result_dict['solutions'] = [[int(v) for v in row.tolist()] for row in samples_np]
+
+    # Attach solver info/timing when present
+    if hasattr(sampleset, 'info') and isinstance(sampleset.info, dict):
+        # Copy to avoid mutating the original info
+        info_copy = dict(sampleset.info)
+        # Ensure tts_tictoc is included for convenience
+        info_copy.setdefault('tts_tictoc', float(execution_time))
+        # Store at top-level only; keep meta for timestamp/other misc
+        result_dict['info'] = info_copy
+    if extra_meta:
+        result_dict['meta'].update(extra_meta)
+
+    # Timestamp for traceability
+    result_dict['meta']['timestamp'] = datetime.now().isoformat()
+
+    return result_dict
+
+def save_result_json(result_dict, output_dir, filename_prefix):
+    """
+    Save a result dictionary to JSON with a timestamped filename.
+
+    Returns the written file path.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filepath = os.path.join(output_dir, f'{filename_prefix}_{ts}.json')
+    with open(filepath, 'w') as f:
+        json.dump(result_dict, f, indent=4)
+    return filepath
+
+def load_result_json(filepath):
+    """
+    Load a saved result JSON file and return the dictionary.
+    """
+    with open(filepath, 'r') as f:
+        return json.load(f)
+
+def import_sampleset(path, qa=False, qci_extra=False):
+    """
+    Import sampleset from JSON file and convert to DataFrame.
     
-def sampleset_to_df(results, skip=1, imported=False, qci=False):
+    Parameters
+    ----------
+    path : str
+        Path to the JSON file containing the sampleset results.
+    qa : bool, optional
+        If True, also returns QPU access time for quantum annealing results, by default False
+    qci_extra : bool, optional
+        If True, includes extra QCI columns (solutions, num_samples, etc.), by default False
+        
+    Returns
+    -------
+    tuple or tuple of tuples
+        If qa=False: (df, execution_time)
+        If qa=True: ((df, execution_time), t_qa_qpu)
+    """
+    with open(path, 'r') as f:
+        result = json.load(f)
+    df_or_tuple = sampleset_to_df(result, imported=True, qci_extra=qci_extra)
+
+    # If QA, return both the execution time and the qpu access time in seconds 
+    if qa:
+        t_qa_qpu = result['info']['timing']['qpu_access_time'] / 1e6
+        return df_or_tuple, t_qa_qpu
+
+    # sampleset_to_df(imported=True) returns (df, execution_time)
+    return df_or_tuple
+    
+def sampleset_to_df(results, skip=1, imported=False, qci_extra=False):
     """
     Convert the results of the optimization to a dataframe.
 
@@ -191,7 +343,7 @@ def sampleset_to_df(results, skip=1, imported=False, qci=False):
         parameter to avoid putting all xlabels, by default 1
     imported : bool, optional
         If the results are imported from a file (or QCI result), by default False
-    qci : bool, optional
+    qci_extra : bool, optional
         If the results are from QCI, includes 'solutions', 'num_samples', 'execution_time', etc., 
         by default False
     """
@@ -199,6 +351,7 @@ def sampleset_to_df(results, skip=1, imported=False, qci=False):
     if imported:
         energies = results['energy']
         occurrences = results['num_occurrences']
+        execution_time = results['execution_time']
     else:
         energies = results.data_vectors['energy']
         occurrences = results.data_vectors['num_occurrences']
@@ -206,24 +359,29 @@ def sampleset_to_df(results, skip=1, imported=False, qci=False):
     counts = Counter(energies)
     total = sum(occurrences)
     counts = {}
+    occurrences_by_energy = {}
     for index, energy in enumerate(energies):
         if energy in counts.keys():
             counts[energy] += occurrences[index]
+            occurrences_by_energy[energy] += occurrences[index]
         else:
             counts[energy] = occurrences[index]
+            occurrences_by_energy[energy] = occurrences[index]
     for key in counts:
         counts[key] /= total
-    df = pd.DataFrame.from_dict(counts, orient='index').sort_index()
-
-    # index is the energy, the column is the probability
-    df.columns = ['Probability']
+    
+    # Create dataframe with both probability and occurrences
+    df_data = {
+        'Probability': [counts[energy] for energy in sorted(counts.keys())],
+        'Occurrences': [occurrences_by_energy[energy] for energy in sorted(counts.keys())]
+    }
+    df = pd.DataFrame(df_data, index=sorted(counts.keys()))
     df.index.name = 'Energy'
 
-    if qci:
+    if qci_extra:
         # Flattened columns of interest
         df_extra = pd.DataFrame({
-            "Energy": energies,
-            "Occurrences": occurrences
+            "Energy": energies
         })
 
         if 'solutions' in results:
@@ -237,7 +395,6 @@ def sampleset_to_df(results, skip=1, imported=False, qci=False):
 
         # Merge on Energy to retain consistency
         df_extra_grouped = df_extra.groupby("Energy").agg({
-            "Occurrences": "sum",
             "Solution": lambda x: list(x),
             "Num_Samples": "first",
             "Execution_Time": "first"
@@ -245,6 +402,9 @@ def sampleset_to_df(results, skip=1, imported=False, qci=False):
 
         df_full = df.reset_index().merge(df_extra_grouped, on="Energy", how="left")
         df = df_full.set_index("Energy")
+
+    if imported: 
+        return df, execution_time
 
     return df
 
@@ -344,6 +504,41 @@ def import_qa_timing_info(filepath):
     # Access the 'timing' and 'tts_tictoc' information
     timing_info = data['timing']
     tts_tictoc_info = data['tts_tictoc']
+
+    # Print the results
+    print("Timing Info:", timing_info)
+    print("TTS Tictoc Info:", tts_tictoc_info)
+
+    return timing_info, tts_tictoc_info
+
+def import_sa_timing_info(filepath):
+    """
+    Import the timing information from the simulated annealing solver.
+
+    Parameters
+    ----------
+    filepath : str
+        The path to the file containing the timing information.
+
+    Returns
+    -------
+    timing_info : dict
+        The timing information dictionary.
+    tts_tictoc_info : float
+        The time to solution (tictoc) for the simulated annealing solver.
+    """
+    import ast
+
+    # Read the file as a string
+    with open(filepath, 'r') as file:
+        content = file.read()
+
+    # Safely evaluate the string to convert it into a Python dictionary
+    data = ast.literal_eval(content)
+
+    # Access the 'timing' and 'tts_tictoc' information
+    timing_info = data.get('timing', {})
+    tts_tictoc_info = data.get('tts_tictoc', None)
 
     # Print the results
     print("Timing Info:", timing_info)

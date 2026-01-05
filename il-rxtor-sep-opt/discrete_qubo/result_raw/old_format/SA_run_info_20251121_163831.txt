@@ -1,0 +1,6 @@
+{'beta_range': [0.000907070745079493, 37.845124046771694],
+ 'beta_schedule_type': 'geometric',
+ 'timing': {'postprocessing_ns': 306753,
+            'preprocessing_ns': 12360760,
+            'sampling_ns': 346894366},
+ 'tts_tictoc': 0.359607458114624}
