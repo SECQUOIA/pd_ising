@@ -709,7 +709,6 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         # Guarantee top-level info present even if serializer changes in future
         if 'info' not in result_dict and hasattr(DWaveSamples, 'info') and isinstance(DWaveSamples.info, dict):
             info_copy = dict(DWaveSamples.info)
-            info_copy.setdefault('tts_tictoc', float(execution_time))
             result_dict['info'] = info_copy
         save_result_json(result_dict, output_dir, filename_prefix='Dwave_QA_results')
 
