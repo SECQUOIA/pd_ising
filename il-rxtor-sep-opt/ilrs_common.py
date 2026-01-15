@@ -13,32 +13,6 @@ from pprint import pprint
 from collections import Counter
 
 # ==================== Functions for Discrete/QUBO Optimization ====================
-def solve_enumerate(Q, Beta):
-    """
-    Solves the QUBO model using the exact solver by enumerating all possible solutions, prints the solving time, and returns the sampling result.
-
-    Parameters
-    ----------
-    Q : np.array
-        The Q matrix of the QUBO model.
-    Beta : float
-        The offset of the QUBO model.
-
-    Returns
-    -------
-    exactSamples : dimod.SampleSet
-        The samples returned by the exact solver.
-    """
-    model = dimod.BinaryQuadraticModel.from_qubo(Q, offset=Beta)
-    exactSampler = dimod.reference.samplers.ExactSolver()
-
-    # Time the execution of the sampling
-    start = time.time()
-    exactSamples = exactSampler.sample(model)
-    end = time.time()
-    print("Execution time: ", end - start) 
-
-    return exactSamples
 
 def solve_sim_annealing(Q, Beta, save=False, output_dir="result_raw"):
     """
@@ -66,9 +40,9 @@ def solve_sim_annealing(Q, Beta, save=False, output_dir="result_raw"):
     simAnnSampler = neal.SimulatedAnnealingSampler()
       
     # Time the execution of the sampling
-    start = time.time()
+    start = time.perf_counter()
     simAnnSamples = simAnnSampler.sample(model, num_reads=1000)
-    end = time.time()
+    end = time.perf_counter()
 
     # Compute time to solution for the simulated annealing sampler
     execution_time = end - start
@@ -123,7 +97,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
     system_name = base_sampler.solver.name
 
     # Time the execution of the sampling
-    start = time.time()
+    start = time.perf_counter()
     DWavesampler = EmbeddingComposite(base_sampler)
     DWaveSamples = DWavesampler.sample(
         bqm=model,
@@ -132,7 +106,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         # chain_strength=chain_strength,
         # annealing_time=annealing_time
     )
-    end = time.time()
+    end = time.perf_counter()
 
     # Compute time to solution for the quantum annealing sampler
     execution_time = end - start

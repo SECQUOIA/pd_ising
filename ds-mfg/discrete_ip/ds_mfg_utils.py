@@ -620,9 +620,9 @@ def solve_sim_annealing(Q, Beta, save=False, output_dir="result_raw"):
     simAnnSampler = neal.SimulatedAnnealingSampler()
       
     # Time the execution of the sampling
-    start = time.time()
+    start = time.perf_counter()
     simAnnSamples = simAnnSampler.sample(model, num_reads=1000)
-    end = time.time()
+    end = time.perf_counter()
 
     # Compute time to solution for the simulated annealing sampler
     execution_time = end - start
@@ -677,7 +677,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
     system_name = base_sampler.solver.name
 
     # Time the execution of the sampling
-    start = time.time()
+    start = time.perf_counter()
     DWavesampler = EmbeddingComposite(base_sampler)
     DWaveSamples = DWavesampler.sample(
         bqm=model,
@@ -686,7 +686,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         # chain_strength=chain_strength,
         # annealing_time=annealing_time
     )
-    end = time.time()
+    end = time.perf_counter()
 
     # Compute time to solution for the quantum annealing sampler
     execution_time = end - start
