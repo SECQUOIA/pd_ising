@@ -1,17 +1,27 @@
 # Import libraries
+# import pyomo.environ as pyo
+import time
 import pandas as pd
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
+import dimod 
+import neal
+import gurobipy as grb
+
 import dwave_networkx as dnx
+from dwave.system import DWaveSampler, EmbeddingComposite, FixedEmbeddingComposite
+from pprint import pprint
+import networkx as nx
 from collections import Counter
 
-# Functions for plotting 
 
 def draw_Q_matrix(Q):
     G = nx.from_numpy_array(Q)
     nx.draw(G, with_labels=True)
     plt.show()
+
+# Functions for plotting 
 
 def plot_bar_graph(results, title=None, skip=1):
     """
@@ -149,10 +159,10 @@ def plot_multibar_graph_discrete(df_list, df_names, df_colors, feas_ub, vertical
 
     width = 0.8 / len(df_list)  # Adjust width to avoid overlap
 
-    fig, ax = plt.subplots(figsize=(18, 6))
-    
     # Convert energy levels to discrete positions (0, 1, 2, ..., len(energy_levels)-1)
     pos = np.arange(len(energy_levels))
+
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     # Plotting the bars at discrete positions
     for i, (df, name, color) in enumerate(zip(unique_dfs, df_names, df_colors)):
@@ -165,7 +175,7 @@ def plot_multibar_graph_discrete(df_list, df_names, df_colors, feas_ub, vertical
 
     # Set the y-axis label
     ax.set_ylabel('Probability')
-    ax.set_xlabel('Discrete Problem Objective Function')
+    ax.set_xlabel('Configuration Objective Function')
     plt.yscale('log')
 
     xtick_labels = [f"> {feas_ub} (infeas)" if e == feas_ub else f"{e:.2f}" if i % skip == 0 else "" for i, e in enumerate(energy_levels)]
@@ -181,4 +191,5 @@ def plot_multibar_graph_discrete(df_list, df_names, df_colors, feas_ub, vertical
         plt.title(str(title))
 
     plt.legend(loc='upper center')
+    
     return fig
