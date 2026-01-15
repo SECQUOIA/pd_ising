@@ -181,4 +181,4 @@ def plot_multibar_graph_discrete(df_list, df_names, df_colors, feas_ub, vertical
         plt.title(str(title))
 
     plt.legend(loc='upper center')
-    plt.show()
+    return fig
