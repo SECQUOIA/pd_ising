@@ -209,8 +209,7 @@ def build_discrete_ip_model(data_filepath, use_quad_constraints=True):
         # The constraint sum(f) - f1*f2 == 1 can be linearized as:
         # sum(f) >= 1 (already satisfied by the constraint below)
         # and we add: f1 + f2 <= 1 + sum(f) - 1 = sum(f)
-        # Actually, looking at the Julia code, this seems to be a specific constraint
-        # that enforces exactly one flow. Let's linearize it properly.
+
         if len(reactors) >= 2:
             # Linearize: sum(f) - f[r1]*f[r2] == 1
             # For binary f1, f2: f1*f2 can be replaced with auxiliary variable u
@@ -468,6 +467,28 @@ def solve_gurobi_pool(
             os.unlink(tmp_lp_path)
 
 # ================== Functions for Analyzing the Results ===================
+
+def _get_variable_compare_cols(df: pd.DataFrame, exclude_cols: List[str]) -> List[str]:
+    """
+    Get columns to use for solution comparison: only y and z variables (excludes f, w, etc.).
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Flattened DataFrame with solutions
+    exclude_cols : list
+        Columns to always exclude (e.g., solution_id, ip_obj_value)
+    
+    Returns
+    -------
+    list
+        Column names for y and z variables only
+    """
+    return [col for col in df.columns 
+            if col not in exclude_cols 
+            and (col.startswith('y_') or col.startswith('z_'))]
+
+
 def load_gurobi_pool_results(json_path: str) -> Dict[str, Any]:
     """
     Load Gurobi pool search results from JSON file.
@@ -485,6 +506,44 @@ def load_gurobi_pool_results(json_path: str) -> Dict[str, Any]:
     with open(json_path, 'r') as f:
         data = json.load(f)
     return data
+
+
+def aggregate_pool_run_timings(result_dir: Optional[Path] = None) -> pd.DataFrame:
+    """
+    Aggregate solve time vs pool-solutions setpoint from all ilrs_gpool_n*.json files in a directory.
+
+    Parameters
+    ----------
+    result_dir : pathlib.Path, optional
+        Directory containing Gurobi pool result JSON files. If None, uses script directory / "result_gurobi".
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns 'n' (pool-solutions setpoint), 'solve_time' (seconds), and 'solution_count' (NumSolutions Found), sorted by n.
+    """
+    if result_dir is None:
+        result_dir = Path(__file__).resolve().parent / "result_gurobi"
+    result_dir = Path(result_dir)
+    rows = []
+    for path in sorted(result_dir.glob("ilrs_gpool_n*.json")):
+        # Extract n from filename (e.g. ilrs_gpool_n150_20260125_224205.json -> 150)
+        stem = path.stem
+        parts = stem.split("_")
+        n_str = next((p for p in parts if p.startswith("n") and p[1:].isdigit()), None)
+        if n_str is None:
+            continue
+        n = int(n_str[1:])
+        data = load_gurobi_pool_results(str(path))
+        pool_info = data["run_info"]["Pool Search Info"]
+        solve_time = pool_info["Solve Time"]
+        num_solutions = pool_info["NumSolutions Found"]
+        rows.append({"n": n, "solve_time": solve_time, "solution_count": num_solutions})
+    if not rows:
+        return pd.DataFrame(columns=["n", "solve_time", "solution_count"])
+    df = pd.DataFrame(rows).sort_values("n").reset_index(drop=True)
+    return df
+
 
 def create_flattened_dataframe(solutions: List[Dict[str, Any]]) -> pd.DataFrame:
     """
@@ -559,8 +618,8 @@ def group_by_objective(df: pd.DataFrame) -> Dict[float, pd.DataFrame]:
 
 def find_duplicate_solutions(df: pd.DataFrame, exclude_cols: List[str] = None, tolerance: float = 1e-10) -> pd.DataFrame:
     """
-    Find duplicate solutions based on variable values (excluding solution_id and ip_obj_value).
-    Duplicate solutions have the SAME values for ALL variables.
+    Find duplicate solutions based on y and z variable values (excluding solution_id, ip_obj_value, f, w, etc.).
+    Duplicate solutions have the SAME values for ALL y and z variables.
     
     Parameters
     ----------
@@ -579,8 +638,8 @@ def find_duplicate_solutions(df: pd.DataFrame, exclude_cols: List[str] = None, t
     if exclude_cols is None:
         exclude_cols = ['solution_id', 'ip_obj_value']
     
-    # Get columns to compare (all except excluded)
-    compare_cols = [col for col in df.columns if col not in exclude_cols]
+    # Get columns to compare (only y and z variables, not f, w, etc.)
+    compare_cols = _get_variable_compare_cols(df, exclude_cols)
     
     # Create a signature for each row based on variable values
     # Round to avoid floating point precision issues (for binary/integer vars, this shouldn't matter)
@@ -588,7 +647,7 @@ def find_duplicate_solutions(df: pd.DataFrame, exclude_cols: List[str] = None, t
     
     # For binary/integer variables, round to nearest integer
     # This handles any tiny floating point differences
-    df_rounded = df[compare_cols].round(10)  # Round to 10 decimal places
+    df_rounded = df[compare_cols].round(0).abs()  # Round to integer
     
     df['variable_signature'] = df_rounded.apply(
         lambda row: tuple(row.values), axis=1
@@ -604,10 +663,11 @@ def find_duplicate_solutions(df: pd.DataFrame, exclude_cols: List[str] = None, t
 def analyze_solution_groups(df: pd.DataFrame) -> Dict[str, Any]:
     """
     Analyze solutions to distinguish between:
-    - Duplicate solutions: Same variable values (all variables match) - MUST have same objective
-    - Same objective solutions: Same objective value but different variable combinations
+    - Duplicate solutions: Same y and z variable values - MUST have same objective
+    - Same objective solutions: Same objective value but different y/z variable combinations
     
-    Note: If same variables have different objectives, that's flagged as an inconsistency.
+    Only y and z variables are used for comparison (f, w, etc. are excluded).
+    Note: If same y/z variables have different objectives, that's flagged as an inconsistency.
     
     Parameters
     ----------
@@ -673,9 +733,8 @@ def analyze_solution_groups(df: pd.DataFrame) -> Dict[str, Any]:
     obj_groups = df.groupby('ip_obj_value')
     for obj_val, obj_group in obj_groups:
         if len(obj_group) > 1:
-            # Get variable signatures for this objective group
-            compare_cols = [col for col in obj_group.columns 
-                          if col not in ['solution_id', 'ip_obj_value']]
+            # Get variable signatures for this objective group (only y and z variables)
+            compare_cols = _get_variable_compare_cols(obj_group, ['solution_id', 'ip_obj_value'])
             signatures = obj_group[compare_cols].apply(
                 lambda row: tuple(row.values), axis=1
             )
@@ -724,33 +783,33 @@ def print_solution_analysis(df: pd.DataFrame) -> Dict[str, Any]:
     print("SOLUTION ANALYSIS")
     print("="*80)
     
-    print(f"\n1. DUPLICATE SOLUTIONS (same variable values AND same objective):")
-    print(f"   Total solutions with duplicate variable combinations: {num_duplicate_vars}")
-    print(f"   Unique variable combinations: {num_unique_vars}")
+    print(f"\n1. DUPLICATE SOLUTIONS (same y/z variable values AND same objective):")
+    print(f"   Total solutions with duplicate y/z variable combinations: {num_duplicate_vars}")
+    print(f"   Unique y/z variable combinations: {num_unique_vars}")
     
     if analysis['duplicate_solutions']:
-        print(f"\n   Duplicate groups (same variables, same objective):")
+        print(f"\n   Duplicate groups (same y/z variables, same objective):")
         for obj_val, info in sorted(analysis['duplicate_solutions'].items()):
             print(f"     Objective {obj_val:.2f}: {info['count']} solutions (IDs: {info['solution_ids']})")
     else:
         print(f"   No true duplicate solutions found")
     
     if analysis['inconsistencies']:
-        print(f"\n   ⚠️  INCONSISTENCIES DETECTED (same variables, different objectives):")
+        print(f"\n   ⚠️  INCONSISTENCIES DETECTED (same y/z variables, different objectives):")
         print(f"   This should not happen - indicates data extraction or model issue!")
         for inc in analysis['inconsistencies']:
             print(f"     Variable signature group: {inc['count']} solutions")
             print(f"       Solution IDs: {inc['solution_ids']}")
             print(f"       Different objectives: {inc['objective_values']}")
     
-    print(f"\n2. SAME OBJECTIVE, DIFFERENT VARIABLES:")
-    print(f"   Objective values with multiple variable combinations: {len(analysis['same_obj_different_vars'])}")
+    print(f"\n2. SAME OBJECTIVE, DIFFERENT Y/Z VARIABLES:")
+    print(f"   Objective values with multiple y/z variable combinations: {len(analysis['same_obj_different_vars'])}")
     if analysis['same_obj_different_vars']:
         for obj_val, info in sorted(analysis['same_obj_different_vars'].items()):
-            print(f"     Objective {obj_val:.2f}: {info['count']} solutions, {info['unique_variable_combinations']} unique variable combinations")
+            print(f"     Objective {obj_val:.2f}: {info['count']} solutions, {info['unique_variable_combinations']} unique y/z variable combinations")
             print(f"       Solution IDs: {info['solution_ids']}")
     
-    print(f"\n3. UNIQUE SOLUTIONS (unique in both objective and variables):")
+    print(f"\n3. UNIQUE SOLUTIONS (unique in both objective and y/z variables):")
     print(f"   Count: {len(analysis['unique_solutions'])}")
     
     return {
