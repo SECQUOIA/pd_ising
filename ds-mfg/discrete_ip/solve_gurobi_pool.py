@@ -13,14 +13,160 @@ from typing import Optional, Dict, Any, List
 import gurobipy as grb
 import tempfile
 import os
-
+import matplotlib.pyplot as plt
+from scipy import stats
+import numpy as np
 import pandas as pd
 
 from flst_opti_IP import FlowsheetOptimizer, get_default_paths
 
 
-# ================== Helper functions for analysis ===================
+# ================== Main solver ===================
 
+def solve_gurobi_pool(
+    flowsheet_data_path: Optional[str] = None,
+    simulation_data_path: Optional[str] = None,
+    pool_search_mode: int = 2,
+    pool_solutions: int = 100,
+    output_dir: Optional[str] = None,
+    verbose: bool = True,
+    save: bool = False
+) -> Dict[str, Any]:
+    """
+    Solve optimization problem using Gurobi's solution pool and extract all solutions.
+    
+    Parameters
+    ----------
+    flowsheet_data_path : str, optional
+        Path to flowsheet data CSV file. If None, uses default path.
+    simulation_data_path : str, optional
+        Path to simulation data CSV file. If None, uses default path.
+    pool_search_mode : int, optional
+        Gurobi PoolSearchMode parameter (default: 2 for finding multiple solutions).
+    pool_solutions : int, optional
+        Maximum number of solutions to find in pool (default: 100).
+    output_dir : str, optional
+        Output directory. If None, uses default path.
+    verbose : bool, optional
+        Whether to print progress information (default: True).
+    save : bool, optional
+        Whether to save the results to a JSON file (default: False).
+    
+    Returns
+    -------
+    dict
+        Dictionary containing:
+        - 'model_info': Model metadata (name, variables, constraints, etc.)
+        - 'Pool Search Info': Pool search parameters and results
+        - Solution dictionaries keyed by solution number (1, 2, 3, ...)
+    """
+    # Get default paths if not provided
+    if flowsheet_data_path is None:
+        flowsheet_data_path, _ = get_default_paths()
+        flowsheet_data_path = str(flowsheet_data_path)
+    
+    if simulation_data_path is None:
+        _, simulation_data_path = get_default_paths()
+        simulation_data_path = str(simulation_data_path)
+    
+    # Initialize optimizer
+    optimizer = FlowsheetOptimizer(flowsheet_data_path, simulation_data_path)
+    model = optimizer.pyomo_model.model
+    
+    # Write model to temporary LP file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.lp', delete=False) as tmp_file:
+        tmp_lp_path = tmp_file.name
+    
+    try:
+        # Write Pyomo model to LP file
+        model.write(tmp_lp_path, io_options={'symbolic_solver_labels': True})
+        
+        # Read and solve with Gurobi directly to access solution pool
+        gurobi_model = grb.read(tmp_lp_path)
+        
+        # Set pool search parameters
+        gurobi_model.setParam('PoolSearchMode', pool_search_mode)
+        gurobi_model.setParam('PoolSolutions', pool_solutions)
+        
+        # Optimize
+        gurobi_model.optimize()
+        
+        solve_time = gurobi_model.Runtime
+        if verbose:
+            print(f"Solve time: {solve_time} seconds")
+        
+        # Get number of solutions in the pool
+        num_solutions = gurobi_model.SolCount
+        if verbose:
+            print(f"\nNumber of solutions in pool: {num_solutions}")
+        
+        # Extract all solutions from the solution pool
+        result_dict = {}
+        
+        # Add model information
+        result_dict["model_info"] = {
+            "ModelName": gurobi_model.ModelName,
+            "NumVars": gurobi_model.NumVars,
+            "NumConstrs": gurobi_model.NumConstrs,
+            "NumObj": gurobi_model.NumObj,
+            "Sense": "Min" if gurobi_model.ModelSense == 1 else "Max",
+            "IsMIP": bool(gurobi_model.IsMIP),
+            "NumBinVars": gurobi_model.NumBinVars,
+            "NumIntVars": gurobi_model.NumIntVars,
+            "NumNZs": gurobi_model.NumNZs
+        }
+        
+        result_dict["Pool Search Info"] = {
+            "PoolSearchMode Parameter": pool_search_mode,
+            "PoolSolutions Parameter": pool_solutions,
+            "Solve Time": solve_time,
+            "NumSolutions Found": num_solutions
+        }
+        
+        if "solutions" not in result_dict: # If solutions are not already in the result dictionary, extract them from the solution pool
+            result_dict["solutions"] = []
+
+        for sol_index in range(num_solutions):
+            # Set the solution number parameter to access solution from pool
+            gurobi_model.Params.SolutionNumber = sol_index
+            
+            # Get objective value for this solution from the pool
+            obj_value = gurobi_model.PoolObjVal
+            var = {v.VarName: v.Xn for v in gurobi_model.getVars()}
+            
+            solution = {
+                "solution_id": sol_index + 1,
+                "ip_obj_value": obj_value,
+                "values": var
+            }
+
+            if verbose:
+                print(f"Solution {sol_index + 1}: Objective: {obj_value:.6f}")
+                print(solution)
+
+            result_dict["solutions"].append(solution)
+
+        if save:
+            if output_dir is None:
+                output_dir = Path(__file__).parent / "result_gurobi"
+            now = datetime.now()
+            timestamp = f"{now.strftime('%Y%m%d_%H%M%S')}_{now.microsecond:06d}"
+            output_path = output_dir / f"gurobi_pool_solutions_n{pool_solutions}_{timestamp}.json"
+
+            with open(output_path, 'w') as f:
+                json.dump(result_dict, f, indent=2)
+
+            print(f"\nAll {num_solutions} solutions saved to: {output_path}")
+        
+        return result_dict
+        
+    finally:
+        # Clean up temporary file
+        if os.path.exists(tmp_lp_path):
+            os.unlink(tmp_lp_path)
+
+
+# ================== Helper functions for analysis ===================
 
 def load_gurobi_pool_results(json_path: str) -> Dict[str, Any]:
     """
@@ -352,147 +498,67 @@ def aggregate_pool_run_timings(result_dir: Optional[Path] = None) -> pd.DataFram
     return df
 
 
-# ================== Main solver ===================
-
-
-def solve_gurobi_pool(
-    flowsheet_data_path: Optional[str] = None,
-    simulation_data_path: Optional[str] = None,
-    pool_search_mode: int = 2,
-    pool_solutions: int = 100,
-    output_filename: Optional[str] = None,
-    verbose: bool = True,
-    save: bool = False
-) -> Dict[str, Any]:
+def plot_pool_replicates_ci(
+    result_dir: Optional[Path] = None,
+    solution_count_ylim_top: float = 40,
+    confidence: float = 0.95,
+) -> None:
     """
-    Solve optimization problem using Gurobi's solution pool and extract all solutions.
-    
+    Plot solve time vs pool-solutions setpoint with confidence intervals.
+
     Parameters
     ----------
-    flowsheet_data_path : str, optional
-        Path to flowsheet data CSV file. If None, uses default path.
-    simulation_data_path : str, optional
-        Path to simulation data CSV file. If None, uses default path.
-    pool_search_mode : int, optional
-        Gurobi PoolSearchMode parameter (default: 2 for finding multiple solutions).
-    pool_solutions : int, optional
-        Maximum number of solutions to find in pool (default: 100).
-    output_filename : str, optional
-        Output JSON filename. If None, generates timestamped filename.
-    verbose : bool, optional
-        Whether to print progress information (default: True).
-    save : bool, optional
-        Whether to save the results to a JSON file (default: False).
-    
-    Returns
-    -------
-    dict
-        Dictionary containing:
-        - 'model_info': Model metadata (name, variables, constraints, etc.)
-        - 'Pool Search Info': Pool search parameters and results
-        - Solution dictionaries keyed by solution number (1, 2, 3, ...)
+    result_dir : pathlib.Path, optional
+        Directory containing Gurobi pool result JSON files. If None, uses script directory / "result_gurobi".
+    solution_count_ylim_top : float, optional
+        Upper limit for secondary y-axis (solutions found). Default 40.
+    confidence : float, optional
+        Confidence level for CI (e.g. 0.95 for 95%). Default 0.95.
     """
-    # Get default paths if not provided
-    if flowsheet_data_path is None:
-        flowsheet_data_path, _ = get_default_paths()
-        flowsheet_data_path = str(flowsheet_data_path)
+
+    if result_dir is None:
+        result_dir = Path(__file__).resolve().parent / "result_gurobi" / "replicates"
+    result_dir = Path(result_dir)
+
+    df = aggregate_pool_run_timings(result_dir)
+    if df.empty:
+        return
+        
+    grouped = df.groupby("n").agg(
+        solve_time_mean=("solve_time", "mean"),
+        solve_time_std=("solve_time", "std"),
+        solve_time_count=("solve_time", "count"),
+        solution_count_mean=("solution_count", "mean"),
+    ).reset_index()
+
+    n_vals = grouped["n"]
+    count = grouped["solve_time_count"]
+    std = grouped["solve_time_std"].fillna(0)
+    t_crit = stats.t.ppf((1 + confidence) / 2, count - 1)
+    ci_half = np.where(count > 1, t_crit * std / np.sqrt(count), 0)
+    fig, ax1 = plt.subplots()
+    ax1.plot(n_vals, grouped["solve_time_mean"], "o-", markersize=6, color="C0")
+    ax1.fill_between(
+        n_vals,
+        grouped["solve_time_mean"] - ci_half,
+        grouped["solve_time_mean"] + ci_half,
+        alpha=0.3,
+        color="C0",
+    )
+    ax1.set_xlabel("Pool solutions setpoint (n)")
+    ax1.set_ylabel("Solve time (s)", color="C0")
+    ax1.set_ylim(top=0.15, bottom=0)
+    ax1.tick_params(axis="y", labelcolor="C0")
     
-    if simulation_data_path is None:
-        _, simulation_data_path = get_default_paths()
-        simulation_data_path = str(simulation_data_path)
-    
-    # Initialize optimizer
-    optimizer = FlowsheetOptimizer(flowsheet_data_path, simulation_data_path)
-    model = optimizer.pyomo_model.model
-    
-    # Write model to temporary LP file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.lp', delete=False) as tmp_file:
-        tmp_lp_path = tmp_file.name
-    
-    try:
-        # Write Pyomo model to LP file
-        model.write(tmp_lp_path, io_options={'symbolic_solver_labels': True})
-        
-        # Read and solve with Gurobi directly to access solution pool
-        gurobi_model = grb.read(tmp_lp_path)
-        
-        # Set pool search parameters
-        gurobi_model.setParam('PoolSearchMode', pool_search_mode)
-        gurobi_model.setParam('PoolSolutions', pool_solutions)
-        
-        # Optimize
-        gurobi_model.optimize()
-        
-        solve_time = gurobi_model.Runtime
-        if verbose:
-            print(f"Solve time: {solve_time} seconds")
-        
-        # Get number of solutions in the pool
-        num_solutions = gurobi_model.SolCount
-        if verbose:
-            print(f"\nNumber of solutions in pool: {num_solutions}")
-        
-        # Extract all solutions from the solution pool
-        result_dict = {}
-        
-        # Add model information
-        result_dict["model_info"] = {
-            "ModelName": gurobi_model.ModelName,
-            "NumVars": gurobi_model.NumVars,
-            "NumConstrs": gurobi_model.NumConstrs,
-            "NumObj": gurobi_model.NumObj,
-            "Sense": "Min" if gurobi_model.ModelSense == 1 else "Max",
-            "IsMIP": bool(gurobi_model.IsMIP),
-            "NumBinVars": gurobi_model.NumBinVars,
-            "NumIntVars": gurobi_model.NumIntVars,
-            "NumNZs": gurobi_model.NumNZs
-        }
-        
-        result_dict["Pool Search Info"] = {
-            "PoolSearchMode Parameter": pool_search_mode,
-            "PoolSolutions Parameter": pool_solutions,
-            "Solve Time": solve_time,
-            "NumSolutions Found": num_solutions
-        }
-        
-        if "solutions" not in result_dict: # If solutions are not already in the result dictionary, extract them from the solution pool
-            result_dict["solutions"] = []
-
-        for sol_index in range(num_solutions):
-            # Set the solution number parameter to access solution from pool
-            gurobi_model.Params.SolutionNumber = sol_index
-            
-            # Get objective value for this solution from the pool
-            obj_value = gurobi_model.PoolObjVal
-            var = {v.VarName: v.Xn for v in gurobi_model.getVars()}
-            
-            solution = {
-                "solution_id": sol_index + 1,
-                "ip_obj_value": obj_value,
-                "values": var
-            }
-
-            if verbose:
-                print(f"Solution {sol_index + 1}: Objective: {obj_value:.6f}")
-                print(solution)
-
-            result_dict["solutions"].append(solution)
-
-        if save:
-            output_path = Path(__file__).parent / "result_gurobi" / f"gurobi_pool_solutions_n{pool_solutions}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            output_path.parent.mkdir(exist_ok=True)
-
-            with open(output_path, 'w') as f:
-                json.dump(result_dict, f, indent=2)
-
-            print(f"\nAll {num_solutions} solutions saved to: {output_path}")
-        
-        return result_dict
-        
-    finally:
-        # Clean up temporary file
-        if os.path.exists(tmp_lp_path):
-            os.unlink(tmp_lp_path)
+    ax2 = ax1.twinx()
+    ax2.scatter(n_vals, grouped["solution_count_mean"], marker="+", s=50, color="C1", zorder=5)
+    ax2.set_ylabel("Solutions found", color="C1")
+    ax2.set_ylim(top=solution_count_ylim_top, bottom=0)
+    ax2.tick_params(axis="y", labelcolor="C1")
+    plt.title(f"[DS-MFG] Gurobi pool search: solve time ({int(confidence*100)}% CI) and solution count vs pool size")
+    fig.tight_layout()
+    plt.show()
+    return None
 
 def main():
     """Main function to run the solver with default parameters."""

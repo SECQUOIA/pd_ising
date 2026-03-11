@@ -17,6 +17,9 @@ from pyomo.opt import SolverStatus, TerminationCondition
 from datetime import date, datetime
 import gurobipy as grb
 import tempfile
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
 
 # ================== Functions for Running the Model ===================
 
@@ -544,6 +547,68 @@ def aggregate_pool_run_timings(result_dir: Optional[Path] = None) -> pd.DataFram
     df = pd.DataFrame(rows).sort_values("n").reset_index(drop=True)
     return df
 
+
+def plot_pool_replicates_ci(
+    result_dir: Optional[Path] = None,
+    solution_count_ylim_top: float = 300,
+    confidence: float = 0.95,
+) -> None:
+    """
+    Plot solve time with confidence intervals and solution count from replicate runs.
+
+    Parameters
+    ----------
+    result_dir : pathlib.Path, optional
+        Directory containing replicate ilrs_gpool_n*.json files. If None, uses script dir / "result_gurobi" / "replicates".
+    solution_count_ylim_top : float, optional
+        Upper limit for secondary y-axis (solutions found). Default 300.
+    confidence : float, optional
+        Confidence level for CI (e.g. 0.95 for 95%). Default 0.95.
+    """
+    if result_dir is None:
+        result_dir = Path(__file__).resolve().parent / "result_gurobi" / "replicates"
+    result_dir = Path(result_dir)
+
+    df = aggregate_pool_run_timings(result_dir)
+    if df.empty:
+        return
+
+    grouped = df.groupby("n").agg(
+        solve_time_mean=("solve_time", "mean"),
+        solve_time_std=("solve_time", "std"),
+        solve_time_count=("solve_time", "count"),
+        solution_count_mean=("solution_count", "mean"),
+    ).reset_index()
+
+    n_vals = grouped["n"]
+    count = grouped["solve_time_count"]
+    std = grouped["solve_time_std"].fillna(0)
+    t_crit = stats.t.ppf((1 + confidence) / 2, count - 1)
+    ci_half = np.where(count > 1, t_crit * std / np.sqrt(count), 0)
+
+    fig, ax1 = plt.subplots()
+    ax1.plot(n_vals, grouped["solve_time_mean"], "o-", markersize=6, color="C0")
+    ax1.fill_between(
+        n_vals,
+        grouped["solve_time_mean"] - ci_half,
+        grouped["solve_time_mean"] + ci_half,
+        alpha=0.3,
+        color="C0",
+    )
+    ax1.set_xlabel("Pool solutions setpoint (n)")
+    ax1.set_ylabel("Solve time (s)", color="C0")
+    ax1.tick_params(axis="y", labelcolor="C0")
+
+    ax2 = ax1.twinx()
+    ax2.scatter(n_vals, grouped["solution_count_mean"], marker="+", s=50, color="C1", zorder=5)
+    ax2.set_ylabel("Solutions found", color="C1")
+    ax2.set_ylim(top=solution_count_ylim_top)
+    ax2.tick_params(axis="y", labelcolor="C1")
+
+    plt.title(f"[ILRS] Gurobi pool search: solve time ({int(confidence*100)}% CI) and solution count vs pool size")
+    fig.tight_layout()
+    plt.show()
+    return None
 
 def create_flattened_dataframe(solutions: List[Dict[str, Any]]) -> pd.DataFrame:
     """
