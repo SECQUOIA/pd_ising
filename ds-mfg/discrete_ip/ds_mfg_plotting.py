@@ -193,3 +193,99 @@ def plot_multibar_graph_discrete(df_list, df_names, df_colors, feas_ub, vertical
     plt.legend(loc='upper center')
     
     return fig
+
+def plot_pareto_front(results_df, title=None):
+    """
+    Plot the Pareto front of the results of the optimization.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The DataFrame containing the results of the optimization with columns 'Energy' and 'Probability'.
+    title : str, optional
+        The plot title, by default None.
+    """
+    # Pareto plot: simulation objective (minimize) vs CAPEX (minimize) by iteration
+    required_cols = {"iteration", "sm_obj_value", "ip_obj_value"}
+    missing_cols = [c for c in required_cols if c not in results_df.columns]
+    if missing_cols:
+        raise ValueError(f"results_df is missing required columns: {missing_cols}")
+
+    # Use IP objective value as CAPEX axis.
+    pareto_df = results_df[["iteration", "sm_obj_value", "ip_obj_value"]].copy()
+    pareto_df = pareto_df.rename(columns={"ip_obj_value": "capex_value"})
+
+    # Explicitly drop NaN and non-finite values so they are not plotted.
+    pareto_df["sm_obj_value"] = pd.to_numeric(pareto_df["sm_obj_value"], errors="coerce")
+    pareto_df["capex_value"] = pd.to_numeric(pareto_df["capex_value"], errors="coerce")
+    pareto_df = pareto_df.replace([float("inf"), float("-inf")], pd.NA)
+    rows_before = len(pareto_df)
+    pareto_df = pareto_df.dropna(subset=["sm_obj_value", "capex_value"]).copy()
+    rows_dropped_nan = rows_before - len(pareto_df)
+
+    # Drop known inaccurate outliers around 1e9 in simulation objective.
+    outlier_mask = pareto_df["sm_obj_value"].abs() >= 1e9
+    rows_dropped_outlier = int(outlier_mask.sum())
+    pareto_df = pareto_df.loc[~outlier_mask].copy()
+
+    if pareto_df.empty:
+        print("No valid rows contain both simulation objective and CAPEX values.")
+        print("Run with simulation data available to populate sm_obj_value.")
+    else:
+        if rows_dropped_nan > 0:
+            print(f"Dropped {rows_dropped_nan} rows with NaN/non-finite sim objective or CAPEX.")
+        if rows_dropped_outlier > 0:
+            print(f"Dropped {rows_dropped_outlier} rows with |sm_obj_value| >= 1e9.")
+
+        pareto_df = pareto_df.sort_values("capex_value").reset_index(drop=True)
+
+        # Pareto frontier for mixed objective directions:
+        # x=capex minimized, y=simulation objective maximized.
+        frontier_rows = []
+        best_sim_obj_so_far = float("0")
+        for _, row in pareto_df.iterrows():
+            if row["sm_obj_value"] <= best_sim_obj_so_far:
+                frontier_rows.append(row)
+                best_sim_obj_so_far = row["sm_obj_value"]
+
+        frontier_df = pd.DataFrame(frontier_rows)
+
+        plt.figure(figsize=(8, 5))
+        plt.scatter(
+            pareto_df["capex_value"],
+            pareto_df["sm_obj_value"],
+            alpha=0.85,
+            s=65,
+            label="Iterations",
+        )
+
+        if not frontier_df.empty:
+            plt.plot(
+                frontier_df["capex_value"],
+                frontier_df["sm_obj_value"],
+                color="crimson",
+                linewidth=2,
+                marker="o",
+                markersize=5,
+                label="Pareto frontier",
+            )
+
+        for _, row in pareto_df.iterrows():
+            plt.annotate(
+                int(row["iteration"]),
+                (row["capex_value"], row["sm_obj_value"]),
+                xytext=(5, 4),
+                textcoords="offset points",
+                fontsize=8,
+                alpha=0.9,
+            )
+
+        plt.xlabel("CAPEX Value (IP Objective)")
+        plt.ylabel("Production rate + product size (Simulation Objective)")
+        plt.title("Pareto Plot: Simulation Objective vs CAPEX by Iteration")
+        plt.grid(alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+        display_cols = ["iteration", "capex_value", "sm_obj_value"]
