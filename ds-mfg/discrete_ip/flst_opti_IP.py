@@ -369,15 +369,25 @@ class FlowsheetOptimizer:
         
         # Save results to CSV if requested
         if save and result_dict:
+            # Get the directory where this script is located
+            script_dir = Path(__file__).parent
+            result_dir = script_dir / "result_gurobi"
+            
+            # Create result_gurobi directory if it doesn't exist
+            result_dir.mkdir(exist_ok=True)
+            
             if json_filename is None:
                 from datetime import datetime
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                json_filename = f"flowsheet_optimization_results_{timestamp}.json"
+                json_filename = f"gurobi_nogoodcuts_results_{timestamp}.json"
+            
+            # Construct full path to save in result_gurobi folder
+            json_path = result_dir / json_filename
             
             # Save as JSON
-            with open(json_filename, 'w') as f:
+            with open(json_path, 'w') as f:
                 json.dump(result_dict, f, indent=2)
-            print(f"Solutions saved to JSON: {json_filename}")
+            print(f"Solutions saved to JSON: {json_path}")
             print(f"JSON contains {len(result_dict)} iterations with combined flow and results information")
         
         return result_dict
@@ -534,6 +544,8 @@ if __name__ == "__main__":
     # Run the optimization once, gurobi returns the global optimal solution
     # main(max_iterations=1,tee=True, save=False) 
 
-    main(max_iterations=3, tee=True, save=True) 
+    main(max_iterations=36, tee=True, save=True) 
+    
+
 
     
