@@ -80,7 +80,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
     topology : str, optional
         The topology of the D-Wave quantum annealer, by default None
         Note: options are "pegasus", "zephyr"
-        See DWaveSampler documentation for available topologies: https://docs.ocean.dwavesys.com/en/stable/docs_dimod/reference/samplers/advanced/dwave_sampler.html#dimod.samplers.advanced.dwave_sampler.DWaveSampler
+        See DWaveSampler documentation for available topologies: https://docs.dwavequantum.com/en/latest/quantum_research/topologies.html#
 
     Returns
     -------
@@ -106,6 +106,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         # chain_strength=chain_strength,
         # annealing_time=annealing_time
     )
+    DWaveSamples.resolve()  # Ensure the samples are fully resolved before measuring time
     end = time.perf_counter()
 
     # Compute time to solution for the quantum annealing sampler
@@ -118,13 +119,20 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
 
     if save:
         os.makedirs(output_dir, exist_ok=True)
+        solver_topology = base_sampler.properties.get("topology", {})
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         
+        meta = {
+            "topology": solver_topology,
+            "solver_name": system_name,
+        }
+
         result_dict = _serialize_sampleset_to_result_dict(
             sampleset=DWaveSamples,
             execution_time=execution_time,
             solver_name=f"dwave_qpu_{system_name}",
-            include_solutions=False
+            include_solutions=False,
+            extra_meta=meta
         )
         # Guarantee top-level info present even if serializer changes in future
         if 'info' not in result_dict and hasattr(DWaveSamples, 'info') and isinstance(DWaveSamples.info, dict):
