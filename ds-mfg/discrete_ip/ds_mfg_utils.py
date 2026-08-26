@@ -659,7 +659,10 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
         Directory to save output files, by default "result_raw"
     topology : str, optional
         The topology of the D-Wave quantum annealer, by default None
-        Note: options are "pegasus" (default), "zephyr"
+        Note: options are "pegasus", "zephyr". When None, no topology
+        constraint is applied and the solver is whichever system the
+        configured D-Wave client selects, so its topology may vary.
+        The topology actually used is recorded in the saved result meta.
         See DWaveSampler documentation for available topologies: https://docs.dwavequantum.com/en/latest/quantum_research/topologies.html#
 
     Returns
@@ -700,7 +703,6 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
     if save:
         os.makedirs(output_dir, exist_ok=True)
         solver_topology = base_sampler.properties.get("topology", {})
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
 
         meta = {
             "topology": solver_topology,

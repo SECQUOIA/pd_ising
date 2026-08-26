@@ -120,8 +120,7 @@ def solve_qa_dwave(Q: np.ndarray, Beta: float, save: bool=False, output_dir="res
     if save:
         os.makedirs(output_dir, exist_ok=True)
         solver_topology = base_sampler.properties.get("topology", {})
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
+
         meta = {
             "topology": solver_topology,
             "solver_name": system_name,
