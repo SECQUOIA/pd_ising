@@ -27,3 +27,7 @@ Manifest*.toml
 LocalPreferences.toml
 JuliaLocalPreferences.toml
 .env
+
+# Python bytecode caches (repository-level test suite)
+__pycache__/
+*.py[cod]
