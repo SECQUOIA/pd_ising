@@ -1,0 +1,10 @@
+# Collapse generated solver result records, QUBO matrix exports, and lockfiles
+# in GitHub pull request diffs so manual review stays focused on source code
+# and notebooks (see Issue #4 and REPRODUCE.md).
+**/result_raw/** linguist-generated=true
+**/result_gurobi/** linguist-generated=true
+**/result_all_configs/** linguist-generated=true
+**/julia_exports/** linguist-generated=true
+**/pixi.lock linguist-generated=true
+**/Manifest.toml linguist-generated=true
+

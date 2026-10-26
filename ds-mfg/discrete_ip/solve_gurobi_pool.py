@@ -185,10 +185,13 @@ def load_gurobi_pool_results(json_path: str) -> Dict[str, Any]:
     with open(json_path, 'r') as f:
         data = json.load(f)
 
+    existing_run_info = data.get('run_info', {})
     # Reorganize data to match expected format
     run_info = {
-        'model_info': data.get('model_info', {}),
-        'Pool Search Info': data.get('Pool Search Info', {})
+        'model_info': data.get('model_info', existing_run_info.get('model_info', {})),
+        'Pool Search Info': data.get(
+            'Pool Search Info', existing_run_info.get('Pool Search Info', {})
+        ),
     }
 
     return {
@@ -463,31 +466,54 @@ def print_solution_analysis(df: pd.DataFrame) -> Dict[str, Any]:
 
 def aggregate_pool_run_timings(result_dir: Optional[Path] = None) -> pd.DataFrame:
     """
-    Aggregate solve time vs pool-solutions setpoint from all gurobi_pool_solutions_n*.json files.
+    Aggregate solve time vs pool-solutions setpoint from all gurobi_pool_solutions_n*.json
+    files (including any bundled ``*_replicates_*.zip`` archives in ``result_dir``).
 
     Parameters
     ----------
     result_dir : pathlib.Path, optional
-        Directory containing Gurobi pool result JSON files. If None, uses script directory / "result_gurobi".
+        Directory containing Gurobi pool result JSON files or replicate zip archives.
+        If None, uses script directory / "result_gurobi".
 
     Returns
     -------
     pd.DataFrame
         DataFrame with columns 'n' (pool-solutions setpoint), 'solve_time' (seconds), and 'solution_count'.
     """
+    import zipfile
+
     if result_dir is None:
         result_dir = Path(__file__).resolve().parent / "result_gurobi"
     result_dir = Path(result_dir)
-    rows = []
+    records_by_name: Dict[str, Dict[str, Any]] = {}
+    for zpath in sorted(result_dir.glob("*_replicates_*.zip")):
+        with zipfile.ZipFile(zpath, "r") as zf:
+            for member in sorted(zf.namelist()):
+                name = Path(member).name
+                if name.startswith("gurobi_pool_solutions_n") and name.endswith(".json"):
+                    raw = json.loads(zf.read(member).decode("utf-8"))
+                    existing = raw.get("run_info", {})
+                    records_by_name[name] = {
+                        "run_info": {
+                            "model_info": raw.get("model_info", existing.get("model_info", {})),
+                            "Pool Search Info": raw.get(
+                                "Pool Search Info", existing.get("Pool Search Info", {})
+                            ),
+                        },
+                        "solutions": raw.get("solutions", []),
+                    }
     for path in sorted(result_dir.glob("gurobi_pool_solutions_n*.json")):
+        records_by_name[path.name] = load_gurobi_pool_results(str(path))
+
+    rows = []
+    for name, data in sorted(records_by_name.items()):
         # Extract n from filename (e.g. gurobi_pool_solutions_n100_20260126_105949.json -> 100)
-        stem = path.stem
+        stem = Path(name).stem
         parts = stem.split("_")
         n_str = next((p for p in parts if p.startswith("n") and p[1:].isdigit()), None)
         if n_str is None:
             continue
         n = int(n_str[1:])
-        data = load_gurobi_pool_results(str(path))
         pool_info = data["run_info"]["Pool Search Info"]
         solve_time = pool_info["Solve Time"]
         num_solutions = pool_info["NumSolutions Found"]

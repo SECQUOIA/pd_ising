@@ -513,31 +513,44 @@ def load_gurobi_pool_results(json_path: str) -> Dict[str, Any]:
 
 def aggregate_pool_run_timings(result_dir: Optional[Path] = None) -> pd.DataFrame:
     """
-    Aggregate solve time vs pool-solutions setpoint from all ilrs_gpool_n*.json files in a directory.
+    Aggregate solve time vs pool-solutions setpoint from all ilrs_gpool_n*.json files
+    in a directory (including any bundled ``*_replicates_*.zip`` archives).
 
     Parameters
     ----------
     result_dir : pathlib.Path, optional
-        Directory containing Gurobi pool result JSON files. If None, uses script directory / "result_gurobi".
+        Directory containing Gurobi pool result JSON files or replicate zip archives.
+        If None, uses script directory / "result_gurobi".
 
     Returns
     -------
     pd.DataFrame
         DataFrame with columns 'n' (pool-solutions setpoint), 'solve_time' (seconds), and 'solution_count' (NumSolutions Found), sorted by n.
     """
+    import zipfile
+
     if result_dir is None:
         result_dir = Path(__file__).resolve().parent / "result_gurobi"
     result_dir = Path(result_dir)
-    rows = []
+    records_by_name: Dict[str, Dict[str, Any]] = {}
+    for zpath in sorted(result_dir.glob("*_replicates_*.zip")):
+        with zipfile.ZipFile(zpath, "r") as zf:
+            for member in sorted(zf.namelist()):
+                name = Path(member).name
+                if name.startswith("ilrs_gpool_n") and name.endswith(".json"):
+                    records_by_name[name] = json.loads(zf.read(member).decode("utf-8"))
     for path in sorted(result_dir.glob("ilrs_gpool_n*.json")):
+        records_by_name[path.name] = load_gurobi_pool_results(str(path))
+
+    rows = []
+    for name, data in sorted(records_by_name.items()):
         # Extract n from filename (e.g. ilrs_gpool_n150_20260125_224205.json -> 150)
-        stem = path.stem
+        stem = Path(name).stem
         parts = stem.split("_")
         n_str = next((p for p in parts if p.startswith("n") and p[1:].isdigit()), None)
         if n_str is None:
             continue
         n = int(n_str[1:])
-        data = load_gurobi_pool_results(str(path))
         pool_info = data["run_info"]["Pool Search Info"]
         solve_time = pool_info["Solve Time"]
         num_solutions = pool_info["NumSolutions Found"]

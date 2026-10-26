@@ -33,3 +33,4 @@ jobs:
               "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
           )"
           printf '%s\n' "$diff_output" | python .github/scripts/check_protected_paths.py
+          printf '%s\n' "$diff_output" | python .github/scripts/check_results_organization.py
