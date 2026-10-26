@@ -1,1 +1,1 @@
-*.ipynb filter=strip-metadata
+# Notebook outputs are retained deliberately as part of the recorded results.

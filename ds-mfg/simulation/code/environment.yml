@@ -266,4 +266,3 @@ dependencies:
       - urllib3==2.2.2
       - werkzeug==3.0.4
       - -e <path_to_PharmaPy>
-prefix: /home/yirangpark/miniconda3/envs/SSoptiPharmaPy

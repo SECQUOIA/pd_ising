@@ -57,8 +57,8 @@ il-rxtor-sep-opt/
 #### Automated Setup (Recommended)
 ```bash
 # Clone the repository
-git clone <https://github.com/SECQUOIA/pd_ising.git>
-cd il-rxtor-sep-opt
+git clone https://github.com/SECQUOIA/pd_ising.git
+cd pd_ising/il-rxtor-sep-opt
 
 # Run the automated setup script
 ./setup_dependencies.sh
@@ -148,12 +148,13 @@ We welcome pull requests with extensions and improvements! This project is desig
 - Update dependency files if new packages are required
 
 ## Documentation
+- **[REPRODUCE.md](../REPRODUCE.md)**: Figure-to-code and result provenance mapping. Note that Jupyter notebook outputs are retained deliberately as part of the recorded results.
 - **DEPENDENCIES.md**: Detailed dependency information and setup
 - **Jupyter Notebooks**: Interactive examples and tutorials
 - **Code Comments**: Comprehensive inline documentation
 
 ## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
 
 ## Acknowledgments
 - Original research by Iftakher & Hasan (2024)

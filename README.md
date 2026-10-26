@@ -22,8 +22,14 @@ This repository provides optimization frameworks for process design problems, co
 pd_ising/
 ├── ds-mfg/                      # Drug Substance Manufacturing Flowsheet Optimization
 │   ├── discrete_ip/             # Discrete IP and QUBO implementation
+│   │   ├── data/                # Flowsheet data files
+│   │   ├── julia_exports/       # Exported QUBO matrices and vectors
+│   │   ├── result_gurobi/       # Gurobi branch-and-bound and pool results
+│   │   └── result_raw/          # Simulated, quantum, and entropy annealing results
 │   ├── simulation/              # Simulation code and results
-│   ├── data/                    # Flowsheet data files
+│   │   ├── code/                # PharmaPy and NOMAD simulation scripts
+│   │   └── data/                # Simulation bounds, compound, and configuration data
+│   ├── images/                  # Flowsheet diagrams
 │   └── README.md                # Detailed documentation
 ├── il-rxtor-sep-opt/            # Ionic Liquid Reactor-Separator Network Optimization
 │   ├── discrete_ip/             # Discrete IP implementation
@@ -31,7 +37,8 @@ pd_ising/
 │   ├── original_mip/            # Original MIP implementation
 │   ├── data/                    # Input data files
 │   └── README.md                # Detailed documentation
-├── images/                      # Project images and diagrams
+├── REPRODUCE.md                 # Figure-to-code and result provenance mapping
+├── LICENSE                      # MIT License
 └── README.md                    # This file
 ```
 
@@ -100,7 +107,8 @@ We welcome contributions and extensions to this repository! Each subproject has 
 
 ## Documentation
 
-- **Subproject READMEs**: Each subproject contains detailed documentation
+- **[REPRODUCE.md](REPRODUCE.md)**: Maps each figure and result table to the notebook/script and stored result files that produced it. Stored notebook outputs are retained deliberately as part of the recorded experimental record.
+- **Subproject READMEs**: Each subproject contains detailed documentation (`ds-mfg/README.md`, `ds-mfg/discrete_ip/README.md`, `il-rxtor-sep-opt/README.md`)
 - **Jupyter Notebooks**: Interactive examples and tutorials in subprojects
 - **Code Comments**: Comprehensive inline documentation throughout
 
@@ -120,7 +128,7 @@ Iftakher, A., & Hasan, M. M. F. (2024). Exploring Quantum Optimization for Compu
 
 ## License
 
-This code is provided for research and educational purposes. Please refer to the original references for proper attribution.
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details. Please also refer to the original case-study references for proper attribution.
 
 ## Support
 
