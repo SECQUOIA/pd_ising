@@ -7,10 +7,10 @@ A comprehensive optimization framework for ionic liquid selection and configurat
 This project implements and compares multiple optimization approaches for the design of ionic liquid reactor-separator networks:
 
 - **Mixed Integer Programming (MIP)**: Classical optimization of the original problem using Gurobi solver
-- **Discrete Integer Programming (IP)**: Formulation of discrete component of MIP 
-- **Quadratic Unconstrained Binary Optimization (QUBO)**: QUBO reformulation of IP to implement SA and QA 
-- **Quantum Annealing**: D-Wave quantum computing implementation
-- **Simulated Annealing**: Classial annealing approach using D-Wave neal 
+- **Discrete Integer Programming (IP)**: Formulation of discrete component of MIP
+- **Quadratic Unconstrained Binary Optimization (QUBO)**: QUBO reformulation of IP to implement SA, QA, and EC
+- **Quantum Annealing (QA)**: D-Wave quantum computing implementation
+- **Simulated Annealing (SA)**: Classical annealing approach using D-Wave `neal`
 
 ## Citation
 
@@ -22,35 +22,44 @@ This work is based on the research paper:
 
 ```
 il-rxtor-sep-opt/
-├── data/                       # Input data files
-│   ├── parameter_alpha.csv     # Reactor conversion factors
-│   ├── parameter_beta.csv      # Separator separation factors
-│   └── parameter_cost.csv      # Cost parameters
-├── discrete_ip/                # Discrete IP implementation
-│   ├── result_gurobi/          # Gurobi solver results
-│   └── ilrs_discrete_IP.jl     # Julia discrete IP formulation
-├── discrete_qubo/              # Discrete QUBO implementation
-│   ├── julia_exports/          # Julia-generated QUBO files
-│   ├── result_raw/             # Raw optimization results
-│   └── ilrs_qubo.ipynb         # Jupyter notebook for QUBO analysis
-├── original_mip/               # Original MIP implementation
-│   ├── ilrs_MIP.py             # Python MIP implementation
-│   ├── ilrs_MIP_julia.ipynb    # Julia MIP notebook
-│   └── ifthaker.jl             # Encoding method from original paper
-├── ilrs_common.py              # Common utilities and other functions
-├── ilrs_plotting.py            # Visualization and plotting functions
-├── ilrs_utils.jl               # Julia utility functions
-└── [dependency files]          # Project.toml, requirements.txt, etc.
+├── data/                                    # Input data files
+│   ├── parameter_alpha.csv                  # Reactor conversion factors
+│   ├── parameter_beta.csv                   # Separator separation factors
+│   └── parameter_cost.csv                   # Cost parameters
+├── discrete_ip/                             # Discrete IP and Gurobi pool-search implementation
+│   ├── result_gurobi/                       # Gurobi solver and replicate pool-search results
+│   ├── ilrs_discrete_IP.jl                  # Julia discrete IP formulation and QUBO export
+│   ├── solve_gurobi_poolsearch_funcs.py     # Python Gurobi solution-pool solver and CI analysis
+│   └── ilrs_discrete_IP_poolsearch.ipynb    # Notebook for Gurobi pool search and replicate plots
+├── discrete_qubo/                           # Discrete QUBO implementation
+│   ├── julia_exports/                       # Julia-generated QUBO files (Q_matrix_1.csv, L_vector_1.csv, scalars_1.csv)
+│   ├── result_raw/                          # Raw SA, D-Wave QA, and QCi EC optimization results
+│   └── ilrs_qubo.ipynb                      # Jupyter notebook for QUBO sampling and feasibility analysis
+├── original_mip/                            # Original MINLP/MIP implementation
+│   ├── ilrs_MIP.py                          # Python Pyomo/Gurobi MIP implementation
+│   ├── ilrs_MIP_julia.ipynb                 # Julia JuMP/QUBO.jl MIP notebook
+│   ├── evaluate_all_configs.jl              # Julia CLI script evaluating all discrete configurations
+│   └── ifthaker.jl                          # Custom binary encoding method from original paper
+├── ilrs_common.py                           # Common Python utilities, samplers, and post-processing
+├── ilrs_helper_fn.py                        # Additional helper functions for ILRS workflows
+├── ilrs_plotting.py                         # Visualization and plotting functions
+├── ilrs_utils.jl                            # Shared Julia model-building and QUBO utility functions
+├── pixi.toml                                # Pixi environment definition (Python 3.12 + juliaup)
+├── pixi.lock                                # Locked Conda and PyPI package versions
+├── Project.toml                             # Julia project dependencies and [compat] bounds
+├── Manifest.toml                            # Locked Julia 1.11.5 package versions
+├── DEPENDENCIES.md                          # Detailed dependency documentation
+├── setup_dependencies.sh                    # Automated setup script
+└── README.md                                # This file
 ```
-
 
 ## Quick Start
 
 ### Prerequisites
-- **Python**: 3.8 or higher
-- **Julia**: 1.11.5 or higher
-- **D-Wave Ocean SDK**: For quantum annealing (optional)
-- **Gurobi**: For MIP optimization (optional)
+- **[Pixi](https://pixi.sh/)**: Environment manager locking Python `3.12`, Conda, and PyPI packages via `pixi.toml` / `pixi.lock`
+- **Julia**: `1.11.5` (pinned in `Project.toml` / `Manifest.toml`; can be provisioned via `pixi run setup-julia`)
+- **D-Wave Ocean SDK**: Included in `pixi.toml`; requires a D-Wave API token for live quantum hardware runs (optional)
+- **Gurobi**: `12.0.3` (`gurobipy == 12.0.3` and `Gurobi.jl == 1.7.0` / `Gurobi_jll == 12.0.3`); requires a Gurobi license for MIP/IP solves
 
 ### Installation
 
@@ -60,35 +69,31 @@ il-rxtor-sep-opt/
 git clone https://github.com/SECQUOIA/pd_ising.git
 cd pd_ising/il-rxtor-sep-opt
 
-# Run the automated setup script
+# Run the automated setup script (installs pixi environment and instantiates Julia packages)
 ./setup_dependencies.sh
 ```
 
 #### Manual Setup
 
-**Python Dependencies:**
+**Python & Conda Dependencies (`pixi`):**
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-# OR
-pip install -e .
+cd il-rxtor-sep-opt
+pixi install
+pixi run verify-python
 ```
 
-**Julia Dependencies:**
+**Julia Dependencies (`Project.toml` / `Manifest.toml`):**
 ```bash
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
+cd il-rxtor-sep-opt
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.status()'
+# Or if Julia 1.11.5 is not yet installed:
+pixi run setup-julia
 ```
 
-**Conda Alternative:**
+**Verify CLI Entrypoint:**
 ```bash
-conda env create -f environment.yml
-conda activate il-rxtor-sep-opt
+julia --project=. original_mip/evaluate_all_configs.jl --help
 ```
-
 
 ## Configuration
 
@@ -145,12 +150,12 @@ We welcome pull requests with extensions and improvements! This project is desig
 - Follow the existing code style and conventions
 - Add comprehensive docstrings for new functions
 - Include example usage in Jupyter notebooks when appropriate
-- Update dependency files if new packages are required
+- Update dependency files (`pixi.toml` / `Project.toml`) if new packages are required
 
 ## Documentation
 - **[REPRODUCE.md](../REPRODUCE.md)**: Figure-to-code and result provenance mapping. Note that Jupyter notebook outputs are retained deliberately as part of the recorded results.
-- **DEPENDENCIES.md**: Detailed dependency information and setup
-- **Jupyter Notebooks**: Interactive examples and tutorials
+- **[DEPENDENCIES.md](DEPENDENCIES.md)**: Detailed dependency information and setup
+- **Jupyter Notebooks**: Interactive examples and tutorials (`discrete_qubo/ilrs_qubo.ipynb`, `discrete_ip/ilrs_discrete_IP_poolsearch.ipynb`, `original_mip/ilrs_MIP_julia.ipynb`)
 - **Code Comments**: Comprehensive inline documentation
 
 ## License
@@ -164,7 +169,6 @@ This project is licensed under the MIT License - see the [LICENSE](../LICENSE) f
 
 ## Support
 For questions and support:
-- Check the documentation in `DEPENDENCIES.md`
+- Check the documentation in [`DEPENDENCIES.md`](DEPENDENCIES.md)
 - Review the Jupyter notebooks for examples
 - Open an issue for bugs or feature requests
-

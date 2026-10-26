@@ -1,5 +1,4 @@
 # Subproject-specific patterns (shared patterns live in root .gitignore)
-Manifest.toml
 .julia_history
 .julia_config
 .julia/
