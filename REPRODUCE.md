@@ -43,3 +43,26 @@ To reproduce the **ILRS QUBO feasibility & objective distribution** from the com
    - `discrete_ip/result_gurobi/*.json` record a filename timestamp and timing fields, but do not embed solver version, random seed, or input SHA-256 hash.
    - `julia_exports/*.csv` were renamed manually from the export routine's date-stamped output (`Q_matrix_<date>.csv` → `Q_matrix_1.csv` or `Q_matrix.csv`), so the export scripts do not regenerate those exact filenames automatically.
    - For new result writers, follow the `run_info` schema in `il-rxtor-sep-opt/original_mip/evaluate_all_configs.jl` (`gurobi_version`, `gurobi_jl_version`, `jump_version`, `julia_version`, `solver_params`, input path, and input SHA-256).
+
+## Standardized Result Organization & PR Review Workflow
+
+To keep pull requests reviewable while preserving experimental records (Issue `#4`), all newly added result and export files follow a standardized layout and automated CI verification (`.github/scripts/check_results_organization.py`):
+
+1. **Canonical directory layout**:
+   - `<subproject>/<workflow>/result_raw/` — Raw SA, D-Wave QA, and QCi EC sampler JSON outputs (`<solver>_results_<YYYYMMDD_HHMMSS>.json`).
+   - `<subproject>/<workflow>/result_gurobi/` — Gurobi IP/MIP and solution-pool JSON outputs (`<model>_<YYYYMMDD_HHMMSS>.json`).
+   - `<subproject>/<workflow>/result_gurobi/replicates/` — Multi-seed replicate runs.
+   - `<subproject>/<workflow>/julia_exports/` — Exported QUBO matrices (`Q_matrix*.csv`, `L_vector*.csv`, `scalars*.csv`).
+2. **Required provenance metadata (`run_info` / `meta`)**:
+   - Every newly added `.json` result record must include a non-empty top-level `"run_info"` or `"meta"` dictionary recording solver version, parameters/seed, timestamp, and input data path/hash.
+3. **Multi-replicate sweep bundling (`replicates/`)**:
+   - Rather than committing dozens of loose JSON files in a single PR, multi-seed sweeps (>20 replicate files) should retain **1 representative `.json` file** (to show the schema in git) and bundle the full replicate set into a deterministic `<prefix>_replicates_<YYYYMMDD>.zip` archive:
+     ```bash
+     python .github/scripts/check_results_organization.py \
+       --bundle-replicates <subproject>/<workflow>/result_gurobi/replicates \
+       --delete-bundled
+     ```
+   - `load_replicate_records(replicates_dir)` in `.github/scripts/check_results_organization.py` loads records transparently from both loose `*.json` files and `*_replicates_*.zip` archives.
+4. **PR review separation (`.gitattributes` & `.github/PULL_REQUEST_TEMPLATE.md`)**:
+   - `.gitattributes` marks `**/result_raw/**`, `**/result_gurobi/**`, `**/result_all_configs/**`, `**/julia_exports/**`, `**/pixi.lock`, and `**/Manifest.toml` with `linguist-generated=true` so GitHub collapses generated artifacts in PR diffs by default.
+   - Pull requests use `.github/PULL_REQUEST_TEMPLATE.md` to separate **What to Review (Primary Code & Notebook Targets)** from **Generated Result & Export Artifacts (Out of Scope for Line-by-Line Code Review)**.
