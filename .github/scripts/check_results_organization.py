@@ -12,7 +12,7 @@ standard (Issue #4 and ``REPRODUCE.md``) on *newly added* result files:
 2. **Filename convention**:
    - Solver JSON records: ``<solver_or_model>_<YYYYMMDD_HHMMSS>[_<id>].json``
    - Replicate archives under ``replicates/``:
-     ``<prefix>_replicates_<YYYYMMDD>[_<HHMMSS>].zip`` (or ``.tar.gz``)
+     ``<prefix>_replicates_<YYYYMMDD>[_<HHMMSS>].zip``
    - Julia QUBO exports under ``julia_exports/``:
      ``(Q_matrix|L_vector|scalars)[_<tag>].csv``
 3. **Provenance metadata**:
@@ -60,7 +60,7 @@ RESULT_JSON_RE = re.compile(
 
 # e.g. gurobi_pool_replicates_20260204.zip or ilrs_gpool_replicates_20260204_155730.zip
 REPLICATE_ARCHIVE_RE = re.compile(
-    r"^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_replicates_\d{8}(?:_\d{6})?\.(?:zip|tar\.gz)$"
+    r"^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*_replicates_\d{8}(?:_\d{6})?\.zip$"
 )
 
 # e.g. Q_matrix.csv, Q_matrix_1.csv, L_vector_20260114.csv, scalars.csv
@@ -76,7 +76,7 @@ def is_result_or_export_path(path: str) -> bool:
 
 
 def parse_added_paths(diff_text: str) -> list[str]:
-    """Return paths with status ``A`` from ``git diff --name-status`` output."""
+    """Return newly introduced paths (``A`` or ``R``/``C`` destination) from ``git diff --name-status``."""
     added: list[str] = []
     for line in diff_text.splitlines():
         if not line.strip():
@@ -87,6 +87,8 @@ def parse_added_paths(diff_text: str) -> list[str]:
         status = fields[0].strip()
         if status == "A":
             added.append(fields[1].strip())
+        elif status.startswith(("R", "C")) and len(fields) >= 3:
+            added.append(fields[2].strip())
     return added
 
 
@@ -116,7 +118,7 @@ def validate_result_file(rel_path: str, repo_root: Path) -> list[str]:
         ]
 
     result_dir_indices = [i for i, part in enumerate(parts[:-1]) if part in RESULT_DIRS]
-    if len(result_dir_indices) != 1 or result_dir_indices[0] < 2:
+    if len(result_dir_indices) != 1 or result_dir_indices[0] != 2:
         return [
             f"{rel_path}: expected canonical path <subproject>/<workflow>/<result_dir>/<file>"
         ]
@@ -207,11 +209,29 @@ def validate_diff(
     ]
 
     uncompressed_replicates: list[str] = []
+    added_replicate_archives: list[str] = []
     for rel_path in added_result_paths:
         parts = PurePosixPath(rel_path).parts
-        if "replicates" in parts[:-1] and rel_path.endswith(".json"):
-            uncompressed_replicates.append(rel_path)
+        if "replicates" in parts[:-1]:
+            if rel_path.endswith(".json"):
+                uncompressed_replicates.append(rel_path)
+            elif REPLICATE_ARCHIVE_RE.match(parts[-1]):
+                added_replicate_archives.append(rel_path)
         errors.extend(validate_result_file(rel_path, repo_root))
+
+    for archive_rel in added_replicate_archives:
+        rep_parent = PurePosixPath(archive_rel).parent
+        has_rep_in_diff = any(
+            PurePosixPath(p).parent == rep_parent and p.endswith(".json")
+            for p in uncompressed_replicates
+        )
+        rep_dir_disk = repo_root / str(rep_parent)
+        has_rep_on_disk = rep_dir_disk.is_dir() and any(rep_dir_disk.glob("*.json"))
+        if not (has_rep_in_diff or has_rep_on_disk):
+            errors.append(
+                f"{archive_rel}: replicate archive must be accompanied by at least "
+                f"one representative .json file in {rep_parent}/"
+            )
 
     if len(uncompressed_replicates) > max_uncompressed_replicates:
         errors.append(
@@ -247,6 +267,11 @@ def bundle_replicates(
         else:
             prefix, date_str = "solver", "00000000"
         archive_name = f"{prefix}_replicates_{date_str}.zip"
+    elif not REPLICATE_ARCHIVE_RE.match(archive_name):
+        raise ValueError(
+            f"Invalid archive_name {archive_name!r}: must match "
+            "<prefix>_replicates_<YYYYMMDD>[_<HHMMSS>].zip"
+        )
 
     archive_path = replicates_dir / archive_name
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:

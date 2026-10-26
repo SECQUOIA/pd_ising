@@ -201,3 +201,89 @@ def test_aggregate_pool_run_timings_reads_bundled_replicates(tmp_path, monkeypat
     df_bundled = mod.aggregate_pool_run_timings(rep_dir)
     assert df_bundled.equals(df_loose)
 
+
+def test_ilrs_aggregate_pool_run_timings_and_archive_validation(tmp_path, monkeypatch):
+    import importlib.util
+    import types
+
+    for mod_name in (
+        "gurobipy",
+        "pyomo",
+        "pyomo.environ",
+        "pyomo.opt",
+        "scipy",
+        "scipy.stats",
+        "matplotlib",
+        "matplotlib.pyplot",
+    ):
+        m = types.ModuleType(mod_name)
+        m.__path__ = []  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, mod_name, m)
+    for attr in (
+        "ConcreteModel",
+        "Var",
+        "Binary",
+        "Constraint",
+        "Objective",
+        "minimize",
+        "Set",
+        "Param",
+        "value",
+        "SolverFactory",
+    ):
+        setattr(sys.modules["pyomo.environ"], attr, object)
+    for attr in ("SolverStatus", "TerminationCondition"):
+        setattr(sys.modules["pyomo.opt"], attr, object)
+
+    spec = importlib.util.spec_from_file_location(
+        "solve_gurobi_poolsearch_funcs",
+        REPO_ROOT
+        / "il-rxtor-sep-opt"
+        / "discrete_ip"
+        / "solve_gurobi_poolsearch_funcs.py",
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    rep_dir = tmp_path / "il-rxtor-sep-opt" / "discrete_ip" / "result_gurobi" / "replicates"
+    rep_dir.mkdir(parents=True, exist_ok=True)
+    for idx, n in enumerate((100, 100, 200)):
+        fname = f"ilrs_gpool_n{n}_20260204_15573{idx}.json"
+        (rep_dir / fname).write_text(
+            json.dumps(
+                {
+                    "run_info": {
+                        "Pool Search Info": {
+                            "Solve Time": 0.1 * (idx + 1),
+                            "NumSolutions Found": n,
+                        }
+                    },
+                    "solutions": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    with pytest.raises(ValueError, match="Invalid archive_name"):
+        bundle_replicates(rep_dir, archive_name="bad_name.zip")
+
+    df_loose = mod.aggregate_pool_run_timings(rep_dir)
+    assert len(df_loose) == 3
+
+    archive_path, rep_path = bundle_replicates(
+        rep_dir, keep_representative=True, delete_bundled=True
+    )
+    df_bundled = mod.aggregate_pool_run_timings(rep_dir)
+    assert df_bundled.equals(df_loose)
+
+    # Removing the representative .json file should fail validate_diff
+    assert rep_path is not None
+    rep_path.unlink()
+    archive_only_diff = (
+        f"A\til-rxtor-sep-opt/discrete_ip/result_gurobi/replicates/{archive_path.name}\n"
+    )
+    errors = validate_diff(archive_only_diff, tmp_path)
+    assert any("representative .json" in e for e in errors)
+
+

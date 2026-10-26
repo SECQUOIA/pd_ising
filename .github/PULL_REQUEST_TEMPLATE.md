@@ -18,6 +18,7 @@
 ## Review & Reproducibility Checklist
 
 - [ ] Code/model changes and generated result records are clearly separated in the description above
-- [ ] Newly added `.json` result files follow `<solver_or_model>_<kind>_<YYYYMMDD_HHMMSS>.json` and include `run_info` or `meta` provenance metadata
+- [ ] Newly added `.json` result files follow `<solver_or_model>_<YYYYMMDD_HHMMSS>[_<id>].json` and include `run_info` or `meta` provenance metadata
 - [ ] Existing committed result and data files were not modified, renamed, or deleted (enforced by `protect-results` CI)
 - [ ] `python .github/scripts/check_privacy_and_secrets.py` and `pytest` pass locally
+
