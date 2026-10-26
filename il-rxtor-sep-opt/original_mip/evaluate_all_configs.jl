@@ -2,8 +2,10 @@
 Evaluate all discrete unit-selection and ionic-liquid configurations for the
 Ionic Liquid Selection and Reactor-Separator Network Design (ILRS) MIP/MINLP.
 
-Usage:
-    julia --project=.. original_mip/evaluate_all_configs.jl [--help] [--data-dir DIR] [--output FILE] [--disc|--no-disc]
+Usage (from il-rxtor-sep-opt/):
+    julia --project=. original_mip/evaluate_all_configs.jl [--help] [--data-dir DIR] [--output FILE] [--disc|--no-disc]
+Usage (from il-rxtor-sep-opt/original_mip/):
+    julia --project=.. evaluate_all_configs.jl [--help] [--data-dir DIR] [--output FILE] [--disc|--no-disc]
 """
 
 using CSV
@@ -70,7 +72,9 @@ function print_usage(io::IO = stdout)
     println(
         io,
         """
-Usage: julia --project=.. original_mip/evaluate_all_configs.jl [options]
+Usage:
+  julia --project=. original_mip/evaluate_all_configs.jl [options]   # from il-rxtor-sep-opt/
+  julia --project=.. evaluate_all_configs.jl [options]               # from il-rxtor-sep-opt/original_mip/
 
 Options:
   -h, --help            Show this help message and exit

@@ -54,8 +54,8 @@ def test_email_in_source_or_notebook_fails_scan():
 def test_email_in_pyproject_metadata_is_allowed():
     email = "user" + "@" + "example.com"
     violations = scan_text(
-        f'authors = [{{name = "Author", email = "{email}"}}]\n',
-        path="il-rxtor-sep-opt/pyproject.toml",
+        f'authors = ["Author <{email}>"]\n',
+        path="il-rxtor-sep-opt/pixi.toml",
     )
     assert violations == []
 

@@ -49,7 +49,6 @@ EMAIL_RE = re.compile(
 # Package metadata files may legitimately declare author contact metadata.
 EMAIL_EXEMPT_FILES = frozenset(
     {
-        "il-rxtor-sep-opt/pyproject.toml",
         "pyproject.toml",
         "pixi.toml",
         "ds-mfg/pixi.toml",
