@@ -51,6 +51,9 @@ EMAIL_EXEMPT_FILES = frozenset(
     {
         "il-rxtor-sep-opt/pyproject.toml",
         "pyproject.toml",
+        "pixi.toml",
+        "ds-mfg/pixi.toml",
+        "il-rxtor-sep-opt/pixi.toml",
         "Project.toml",
         "ds-mfg/Project.toml",
         "il-rxtor-sep-opt/Project.toml",

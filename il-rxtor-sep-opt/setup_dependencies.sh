@@ -1,97 +1,38 @@
 #!/bin/bash
 
 # Setup script for IL-RXTOR-SEP-OPT dependencies
-# This script installs both Julia and Python dependencies
+# Installs the locked Python/Conda/PyPI environment via pixi and instantiates Julia packages
 
-set -e  # Exit on any error
+set -euo pipefail
 
 echo "Setting up dependencies for IL-RXTOR-SEP-OPT project..."
 echo "=================================================="
 
-# Check if Python is available
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
-else
-    echo "Error: Python not found. Please install Python 3.8 or higher."
+if ! command -v pixi &> /dev/null; then
+    echo "Error: pixi not found. Install pixi from https://pixi.sh/ before running this script."
     exit 1
 fi
 
-# Check Python version
-PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-echo "Found Python version: $PYTHON_VERSION"
-
-# Check if Julia is available
-if ! command -v julia &> /dev/null; then
-    echo "Warning: Julia not found. Please install Julia 1.11.5 or higher."
-    echo "You can download it from: https://julialang.org/downloads/"
-    echo "Continuing with Python setup only..."
-    JULIA_AVAILABLE=false
-else
-    JULIA_VERSION=$(julia --version | grep -o 'Julia [0-9.]*' | cut -d' ' -f2)
-    echo "Found Julia version: $JULIA_VERSION"
-    JULIA_AVAILABLE=true
-fi
+echo "Installing locked Python and Julia toolchain via pixi..."
+pixi install
+pixi run verify-python
+echo "✓ Pixi environment installed and verified"
 
 echo ""
-echo "Setting up Python dependencies..."
-echo "--------------------------------"
-
-# Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
-    $PYTHON_CMD -m venv venv
-fi
-
-# Activate virtual environment
-echo "Activating virtual environment..."
-source venv/bin/activate
-
-# Upgrade pip
-echo "Upgrading pip..."
-pip install --upgrade pip
-
-# Install Python dependencies
-echo "Installing Python dependencies..."
-if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
-    echo "✓ Python dependencies installed from requirements.txt"
+echo "Setting up Julia dependencies (Julia 1.11.5)..."
+echo "-----------------------------------------------"
+if command -v julia &> /dev/null; then
+    julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.status()'
+    echo "✓ Julia dependencies instantiated from Project.toml and Manifest.toml"
 else
-    echo "Warning: requirements.txt not found"
-fi
-
-# Install from pyproject.toml if available
-if [ -f "pyproject.toml" ]; then
-    echo "Installing from pyproject.toml..."
-    pip install -e .
-    echo "✓ Python dependencies installed from pyproject.toml"
-fi
-
-echo ""
-echo "Setting up Julia dependencies..."
-echo "-------------------------------"
-
-if [ "$JULIA_AVAILABLE" = true ]; then
-    # Install Julia dependencies
-    echo "Installing Julia dependencies..."
-    julia --project=. -e 'using Pkg; Pkg.instantiate()'
-    echo "✓ Julia dependencies installed"
-else
-    echo "Skipping Julia setup (Julia not available)"
+    pixi run setup-julia
+    echo "✓ Julia 1.11.5 and project dependencies installed via juliaup"
 fi
 
 echo ""
 echo "Setup complete!"
 echo "=============="
-echo ""
-echo "To activate the Python environment in the future, run:"
-echo "  source venv/bin/activate"
-echo ""
-echo "To install additional Python packages:"
-echo "  pip install package_name"
-echo ""
-echo "To update Julia packages:"
-echo "  julia --project=. -e 'using Pkg; Pkg.update()'"
-echo ""
-echo "For more information, see DEPENDENCIES.md" 
+echo "Run commands inside the locked environment with:"
+echo "  pixi run python <script.py>"
+echo "  pixi run jupyter lab"
+echo "  julia --project=. <script.jl>"

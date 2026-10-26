@@ -8,7 +8,7 @@ This directory contains the discrete integer programming (IP) and quadratic unco
 - `solve_gurobi_pool.py` & `ds_mfg_discrete_IP_poolsearch.ipynb` — Gurobi solution-pool search and replicate confidence-interval analysis.
 - `convert_to_qubo.jl` — Julia (`JuMP` / `ToQUBO.jl` / `QUBOTools.jl`) script exporting the MPS model (`flowsheet_opti_simple.mps`) to `julia_exports/`.
 - `flst_opti_QUBO.ipynb` — QUBO sampling and feasibility comparison across simulated annealing (SA), D-Wave quantum annealing (QA), and QCi Dirac entropy computing (EC).
-- `ds_mfg_utils.py` & `ds_mfg_plotting.py` — Shared solver, post-processing, and plotting utilities.
+- `ds_mfg_utils.py`, `ds_mfg_helper_fn.py`, & `ds_mfg_plotting.py` — Shared solver, post-processing, helper, and plotting utilities.
 - `data/ssopt_gen_1.csv` — Flowsheet arc and unit-operation cost table.
 - `julia_exports/` — Committed QUBO exports (`Q_matrix.csv`, `L_vector.csv`, `scalars.csv`).
 - `result_gurobi/` — Committed Gurobi no-good-cut and solution-pool JSON records (including `replicates/`).

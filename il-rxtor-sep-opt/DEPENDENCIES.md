@@ -1,157 +1,94 @@
-# Dependencies Documentation
+# Dependencies Documentation (`il-rxtor-sep-opt/DEPENDENCIES.md`)
 
-This document describes the dependencies for the IL-RXTOR-SEP-OPT project, which uses both Julia and Python.
+This document describes the reproducible environment definitions for the `il-rxtor-sep-opt` case study, which uses both Python and Julia.
 
-## Julia Dependencies
+## Single Environment Definition (`pixi.toml` + `Project.toml`)
 
-The Julia dependencies are managed through `Project.toml` and `Manifest.toml` files.
+The subproject uses two complementary lockfiles committed to the repository:
 
-### Core Dependencies (Project.toml)
+1. **`pixi.toml` & `pixi.lock`** — Locks the Python `3.12` interpreter, `juliaup`, and all Conda and PyPI scientific/quantum optimization packages.
+2. **`Project.toml` & `Manifest.toml`** — Locks the Julia `1.11.5` package graph (including `Gurobi.jl v1.7.0` / `Gurobi_jll v12.0.3`, `JuMP v1.26.0`, `MathOptInterface v1.41.0`, `QUBO v0.6.4`, `QUBOTools v0.16.3`, and `ToQUBO v0.7.1`).
 
-- **CSV**: Data import/export functionality
-- **DWave**: D-Wave quantum computing interface
-- **DataFrames**: Data manipulation and analysis
-- **Gurobi**: Mathematical optimization solver interface
-- **JSON**: JSON data format handling
-- **JuMP**: Julia for Mathematical Programming
-- **LaTeXStrings**: LaTeX string formatting for plots
-- **MathOptInterface**: Mathematical optimization interface
-- **Plots**: Plotting and visualization
-- **PseudoBooleanOptimization**: Pseudo-Boolean optimization
-- **QCIOpt**: QCI optimization interface
-- **QUBO**: Quadratic Unconstrained Binary Optimization
-- **QUBOTools**: QUBO manipulation tools
-- **ToQUBO**: QUBO conversion utilities
+## Julia Dependencies (`Project.toml` & `Manifest.toml`)
 
-### Installation
+### Direct Dependencies (`[deps]`)
 
-To install Julia dependencies:
+- **CSV** (`=0.10.15`): CSV data import/export
+- **DWave** (`=0.8.2`): D-Wave quantum and simulated annealing interface
+- **DataFrames** (`=1.7.0`): Tabular data manipulation
+- **Dates** (`1.11.0`, stdlib): Date/timestamp formatting for exports and metadata
+- **DelimitedFiles** (`=1.9.1`): Matrix and vector CSV export (`writedlm`)
+- **Gurobi** (`=1.7.0`, with `Gurobi_jll v12.0.3` in `Manifest.toml`): Gurobi MIP/MINLP solver interface
+- **JSON** (`=0.21.4`): JSON result serialization
+- **JuMP** (`=1.26.0`): Algebraic modeling language for mathematical optimization
+- **LaTeXStrings** (`=1.4.0`): LaTeX string formatting for plots
+- **MathOptInterface** (`=1.41.0`): Mathematical optimization solver abstraction
+- **Plots** (`=1.40.15`): Plotting and QUBO density visualization
+- **Printf** (`1.11.0`, stdlib): Formatted console output
+- **PseudoBooleanOptimization** (`=0.3.0`): Pseudo-Boolean polynomial Quadratization (`Ifthaker` encoding)
+- **QCIOpt** (`=0.2.0`, `https://github.com/SECQUOIA/QCIOpt.jl.git#v0.2.0`): QCi Dirac-3 optimization interface
+- **QUBO** (`=0.6.4`): Quadratic Unconstrained Binary Optimization umbrella package
+- **QUBOTools** (`=0.16.3`): QUBO model representation and querying
+- **SHA** (`=0.7.0`, stdlib): SHA-256 input-file hashing for provenance metadata
+- **SparseArrays** (`=1.11.0`, stdlib): Sparse QUBO matrix construction
+- **Statistics** (`=1.11.1`): Summary statistics across solver runs
+- **ToQUBO** (`=0.7.1`): Automatic JuMP-to-QUBO reformulation compiler
 
-```bash
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-```
-
-## Python Dependencies
-
-The Python dependencies are managed through `requirements.txt` and `pyproject.toml` files.
-
-### Core Dependencies
-
-#### Scientific Computing
-- **numpy>=1.21.0**: Numerical computing
-- **pandas>=1.3.0**: Data manipulation and analysis
-- **matplotlib>=3.5.0**: Plotting and visualization
-
-#### Quantum Computing
-- **dimod>=0.12.0**: Binary quadratic model handling
-- **dwave-system>=1.0.0**: D-Wave quantum computing system
-- **dwave-networkx>=0.8.0**: Network analysis for quantum computing
-- **neal>=0.5.0**: Simulated annealing sampler
-- **qci-client>=0.1.0**: QCI quantum computing client
-
-#### Optimization
-- **pyomo>=6.0.0**: Python Optimization Modeling Objects
-
-#### Network Analysis
-- **networkx>=2.6.0**: Network analysis and graph algorithms
-
-### Optional Dependencies
-
-#### Development (dev)
-- **pytest>=6.0**: Testing framework
-- **black>=21.0**: Code formatting
-- **flake8>=3.8**: Linting
-- **mypy>=0.910**: Type checking
-
-#### Documentation (docs)
-- **sphinx>=4.0**: Documentation generator
-- **sphinx-rtd-theme>=1.0**: Read the Docs theme
-
-### Installation
-
-#### Using pip with requirements.txt:
-```bash
-pip install -r requirements.txt
-```
-
-#### Using pip with pyproject.toml:
-```bash
-pip install -e .
-```
-
-#### Installing with optional dependencies:
-```bash
-# Development dependencies
-pip install -e ".[dev]"
-
-# Documentation dependencies
-pip install -e ".[docs]"
-
-# Both
-pip install -e ".[dev,docs]"
-```
-
-## Environment Setup
-
-### Recommended Setup
-
-1. **Create a virtual environment for Python:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-2. **Install Python dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Install Julia dependencies:**
-   ```bash
-   julia --project=. -e 'using Pkg; Pkg.instantiate()'
-   ```
-
-### Conda Environment (Alternative)
-
-You can also use conda for Python dependency management:
+### Instantiating Julia Packages
 
 ```bash
-conda create -n il-rxtor-sep-opt python=3.9
-conda activate il-rxtor-sep-opt
-pip install -r requirements.txt
+cd il-rxtor-sep-opt
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.status()'
 ```
 
-## Version Compatibility
+If Julia `1.11.5` is not yet installed on your machine, provision it via `pixi`:
 
-- **Python**: >=3.8
-- **Julia**: 1.11.5 (as specified in Manifest.toml)
+```bash
+pixi run setup-julia
+```
 
-## Notes
+## Python Dependencies (`pixi.toml` & `pixi.lock`)
 
-- The project uses both Julia and Python for different aspects of the optimization pipeline
-- Julia handles the core mathematical optimization and QUBO formulation
-- Python handles data processing, visualization, and quantum computing interfaces
-- Both languages can interact through file-based data exchange
+### Conda Packages (`conda-forge`)
+- **python** (`3.12.*`): Python interpreter
+- **juliaup** (`==1.19.9`): Julia version manager used by `pixi run setup-julia` to provision Julia `1.11.5`
+- **numpy** (`==1.26.4`): Numerical array computing
+- **pandas** (`==2.2.2`): DataFrame manipulation and CSV I/O
+- **scipy** (`==1.13.1`): Statistical routines (`scipy.stats`) for pool-search confidence intervals
+- **matplotlib** (`==3.8.4`): Plotting and figure generation
+- **networkx** (`==3.3`): Graph construction and topology visualization
+- **pyomo** (`==6.9.2`): Algebraic optimization modeling (`original_mip/ilrs_MIP.py` and `discrete_ip/solve_gurobi_poolsearch_funcs.py`)
+- **jupyter** (`==1.1.1`) & **ipykernel** (`==6.29.5`): Notebook execution environment
+- **python-dateutil** (`>=2.7,<3`): Date utilities pinned for `dwave-cloud-client` compatibility
 
-## Troubleshooting
+### PyPI Packages (`[pypi-dependencies]`)
+- **dimod** (`==0.12.20`): Binary quadratic model primitives
+- **dwave-neal** (`==0.6.0`): Simulated annealing sampler (`neal`)
+- **dwave-system** (`==1.31.0`): D-Wave system samplers and embedding composites
+- **dwave-networkx** (`==0.8.17`): Chimera/Pegasus/Zephyr graph utilities
+- **minorminer** (`==0.2.18`): Minor-embedding heuristics
+- **gurobipy** (`==12.0.3`): Gurobi Python API (`PoolSearchMode=2` solution-pool search)
 
-### Common Issues
+### Installing and Running via Pixi
 
-1. **Julia package installation fails:**
-   - Ensure you're using Julia 1.11.5 or compatible version
-   - Try `julia --project=. -e 'using Pkg; Pkg.resolve()'`
+```bash
+cd il-rxtor-sep-opt
 
-2. **Python package conflicts:**
-   - Use a virtual environment
-   - Check for conflicting package versions in your global environment
+# Install from the committed pixi.lock
+pixi install
 
-3. **D-Wave dependencies:**
-   - Some D-Wave packages may require specific authentication setup
-   - Refer to D-Wave documentation for API key configuration
+# Verify core Python imports
+pixi run verify-python
 
-### Getting Help
+# Run scripts or notebooks inside the locked environment
+pixi run python original_mip/ilrs_MIP.py
+pixi run jupyter lab
+```
 
-- Check the individual package documentation for specific issues
-- Ensure all dependencies are compatible with your system architecture
-- Consider using the exact versions specified in the lock files for reproducible environments 
-- Please raise issues and/or create PRs as needed! 
+## Automated Setup
+
+You can also run [`setup_dependencies.sh`](setup_dependencies.sh) from `il-rxtor-sep-opt/`:
+
+```bash
+./setup_dependencies.sh
+```

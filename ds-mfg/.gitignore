@@ -1,4 +1,4 @@
-# Subproject-specific environment declarations (shared patterns live in root .gitignore)
-CondaPkg.toml
-Manifest.toml
-Project.toml
+# Subproject-specific patterns (shared patterns live in root .gitignore)
+.julia_history
+.julia_config
+.julia/

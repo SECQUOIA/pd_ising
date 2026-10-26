@@ -1,0 +1,35 @@
+[workspace]
+name = "il-rxtor-sep-opt"
+version = "0.1.0"
+description = "Ionic Liquid Selection and Reactor-Separator Network Optimization (ILRS) case study"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+setup-julia = "juliaup add 1.11.5 && julia +1.11.5 --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.status()'"
+instantiate-julia = "julia +1.11.5 --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.status()'"
+verify-python = "python -c 'import dimod, neal, minorminer, scipy, pyomo, pandas, numpy, networkx, matplotlib'"
+
+# Note: conda-forge's `julia` feedstock has no 1.11.x builds (it jumps from 1.10.4 to 1.12.1),
+# so `juliaup` is locked here and `pixi run setup-julia` provisions Julia 1.11.5.
+[dependencies]
+python = "3.12.*"
+juliaup = "==1.19.9"
+numpy = "==1.26.4"
+pandas = "==2.2.2"
+scipy = "==1.13.1"
+matplotlib = "==3.8.4"
+networkx = "==3.3"
+pyomo = "==6.9.2"
+jupyter = "==1.1.1"
+ipykernel = "==6.29.5"
+python-dateutil = ">=2.7,<3"
+pip = "*"
+
+[pypi-dependencies]
+dimod = "==0.12.20"
+dwave-neal = "==0.6.0"
+dwave-system = "==1.31.0"
+dwave-networkx = "==0.8.17"
+minorminer = "==0.2.18"
+gurobipy = "==12.0.3"
