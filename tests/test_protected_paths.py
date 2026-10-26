@@ -110,4 +110,3 @@ def test_workflow_propagates_git_diff_failures():
     ).read_text(encoding="utf-8")
     assert "set -euo pipefail" in workflow
     assert 'diff_output="$(' in workflow
-
