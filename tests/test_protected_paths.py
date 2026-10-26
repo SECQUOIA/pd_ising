@@ -99,3 +99,15 @@ def test_mixed_pull_request_reports_only_the_altered_result():
 
 def test_empty_diff_passes():
     assert find_violations("") == []
+
+
+def test_workflow_propagates_git_diff_failures():
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "protect-results.yml"
+    ).read_text(encoding="utf-8")
+    assert "set -euo pipefail" in workflow
+    assert 'diff_output="$(' in workflow
+

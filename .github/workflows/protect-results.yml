@@ -27,6 +27,9 @@ jobs:
 
       - name: Check for altered result and data files
         run: |
-          git diff --name-status \
-            "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" \
-            | python .github/scripts/check_protected_paths.py
+          set -euo pipefail
+          diff_output="$(
+            git diff --name-status \
+              "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+          )"
+          printf '%s\n' "$diff_output" | python .github/scripts/check_protected_paths.py
