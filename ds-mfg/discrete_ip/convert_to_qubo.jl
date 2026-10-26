@@ -4,7 +4,7 @@ using QUBO
 using Dates
 using DelimitedFiles
 
-const export_dir = joinpath(@__DIR__, "..", "julia_exports")
+const export_dir = joinpath(@__DIR__, "julia_exports")
 
 @doc"""
     Convert a JuMP model to a QUBO model.

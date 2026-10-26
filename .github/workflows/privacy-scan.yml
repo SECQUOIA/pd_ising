@@ -1,0 +1,31 @@
+name: Privacy and credential scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  privacy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Scan repository for home paths, credentials, and emails
+        run: |
+          set -euo pipefail
+          python .github/scripts/check_privacy_and_secrets.py
+
+      - name: Run repository unit tests
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet pytest pandas numpy
+          python -m pytest tests/ -q

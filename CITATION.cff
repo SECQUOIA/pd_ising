@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+title: "pd_ising: Process Design Optimization using Ising Models"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+authors:
+  - given-names: Yirang
+    family-names: Park
+    affiliation: Purdue University
+  - given-names: David E.
+    family-names: Bernal Neira
+    affiliation: Purdue University
+    orcid: 'https://orcid.org/0000-0002-8308-5016'
+repository-code: 'https://github.com/SECQUOIA/pd_ising'
+url: 'https://github.com/SECQUOIA/pd_ising'
+abstract: >-
+  Process design optimization case studies comparing classical branch-and-bound
+  and solution-pool solvers with QUBO/Ising heuristics (simulated annealing,
+  D-Wave quantum annealing, and QCi entropy computing) for ionic-liquid
+  reactor-separator network design and drug-substance manufacturing flowsheets.
+keywords:
+  - Process Design
+  - QUBO
+  - Ising Model
+  - Quantum Annealing
+  - Simulated Annealing
+  - Mixed-Integer Programming
+license: MIT
+version: 0.1.0
