@@ -22,8 +22,8 @@ def test_existing_tree_passes_privacy_and_credential_scan():
 @pytest.mark.parametrize(
     "sample",
     [
-        "path = '/home/alice/repos/pd_ising/data.csv'\n",
-        'prefix: /Users/bob/miniconda3/envs/test\n',
+        "path = '" + "/home" + "/alice/repos/pd_ising/data.csv'\n",
+        "prefix: " + "/Users" + "/bob/miniconda3/envs/test\n",
     ],
 )
 def test_home_directory_paths_fail_scan(sample):
@@ -34,10 +34,10 @@ def test_home_directory_paths_fail_scan(sample):
 @pytest.mark.parametrize(
     "sample",
     [
-        'os.environ["DWAVE_API_TOKEN"] = "your-api-token"\n',
-        'os.environ["QCI_API_TOKEN"] = "secret"\n',
-        "token = 'ghp_1234567890abcdefghijklmnopqrstuv'\n",
-        "token = 'DEV-0123456789abcdef0123456789abcdef'\n",
+        "os." + 'environ["DWAVE_API_TOKEN"] = "your-api-token"\n',
+        "os." + 'environ["QCI_API_TOKEN"] = "secret"\n',
+        "token = 'ghp" + "_1234567890abcdefghijklmnopqrstuv'\n",
+        "token = 'DEV-" + "0123456789abcdef0123456789abcdef'\n",
     ],
 )
 def test_credential_patterns_fail_scan(sample):
@@ -46,13 +46,15 @@ def test_credential_patterns_fail_scan(sample):
 
 
 def test_email_in_source_or_notebook_fails_scan():
-    violations = scan_text("contact = 'user@example.com'\n", path="script.py")
-    assert violations == [(1, "email", "user@example.com")]
+    email = "user" + "@" + "example.com"
+    violations = scan_text(f"contact = '{email}'\n", path="script.py")
+    assert violations == [(1, "email", email)]
 
 
 def test_email_in_pyproject_metadata_is_allowed():
+    email = "user" + "@" + "example.com"
     violations = scan_text(
-        'authors = [{name = "Author", email = "user@example.com"}]\n',
+        f'authors = [{{name = "Author", email = "{email}"}}]\n',
         path="il-rxtor-sep-opt/pyproject.toml",
     )
     assert violations == []
