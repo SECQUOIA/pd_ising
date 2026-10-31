@@ -27,13 +27,15 @@ The case study models the end-to-end synthesis, solvent switch, cooling crystall
   - `data_organizer.py` — Evaluates `flowsheet.GetCAPEX()` across the optimized configurations in `data/obj_mass_prod_crys/x_input_sorted.csv`.
   - `nomad_opt.py` & `run_all_opts.py` — PyNomad black-box optimization drivers for individual and batch superstructure configurations.
   - `process_results.py` — Parses NOMAD optimization log files into summary tables.
+  - `generate_corrected_model_tables.py` — Evaluates and re-optimizes all 40 superstructure configurations on the corrected current `PharmaPy` model (`3194efd`), writes the updated simulation and CAPEX tables to `data/corrected_model_pharmapy_current/`, derives the updated 19-edge discrete-IP tables in `../discrete_ip/data/corrected_model_pharmapy_current/`, and enumerates all 36 no-good-cut MILP solutions in `../discrete_ip/result_corrected_model/` without modifying any legacy 2022–2023 provenance files.
 - `data/`
   - `compounds_lomustine.json` — 9-species thermophysical property database (`ISO`, `CHA`, `interm`, `TBN`, `lom`, `TBA`, `SUB1`, `THF`, `C7`).
   - `bounds.json` — Decision-variable lower and upper bounds for each unit operation and operating mode.
   - `optimal_points_2.json` & `optimal_points_2_PFR.json` — Normalized (`[0, 1]`) optimal decision variables for all 40 superstructure configurations (`#00`–`#39`, with updated `PFR` configurations `#24`–`#35` in `optimal_points_2_PFR.json`).
-  - `optimal_mass_size_2_fixed.json` — Reference `[mass_production_kg_per_s, mean_crystal_size_um]` values across the 40 optimal configurations.
+  - `optimal_mass_size_2_fixed.json` — Reference `[mass_production_kg_per_s, mean_crystal_size_um]` values across the 40 optimal configurations (2022 `PharmaPy` provenance benchmark).
   - `capex_coeff.csv` & `raw_material_cost.csv` — Aggregated unit-operation capital and raw-material costs used by `ds-mfg/discrete_ip/`.
-  - `obj_mass_prod_crys/` — Sorted NOMAD decision vectors (`x_input_sorted.csv`) and extracted unit-operation CAPEX table (`x_input_with_total_capex.csv`).
+  - `obj_mass_prod_crys/` — Legacy 2022–2023 sorted NOMAD decision vectors (`x_input_sorted.csv`) and extracted unit-operation CAPEX table (`x_input_with_total_capex.csv`).
+  - `corrected_model_pharmapy_current/` — Complete 40-configuration evaluation and `PyNomad` black-box re-optimization tables generated on the corrected current `PharmaPy` model (`3194efd`); see [`data/corrected_model_pharmapy_current/README.md`](data/corrected_model_pharmapy_current/README.md) and [`../discrete_ip/result_corrected_model/README.md`](../discrete_ip/result_corrected_model/README.md) for full provenance details.
 
 ## Running Simulations and Tests
 
@@ -47,4 +49,10 @@ To re-evaluate all 40 optimal superstructure configurations:
 
 ```bash
 python ds-mfg/simulation/code/generating_structures.py
+```
+
+To regenerate the corrected-model (`PharmaPy 3194efd`) simulation tables, `ssopt_gen_1` edge costs, and 36-solution discrete-IP rankings without altering legacy provenance files:
+
+```bash
+python ds-mfg/simulation/code/generate_corrected_model_tables.py --eval-only
 ```

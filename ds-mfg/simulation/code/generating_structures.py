@@ -356,7 +356,8 @@ def get_objective_value_cost(flowsheet, layout=None, inputs=None):
 
     return total_obj
 
-def get_constraints_values(flowsheet, layout=None, inputs=None):
+def get_constraints_values(flowsheet, layout=None, inputs=None,
+                           include_heptane_constraint=True):
     """
     Function to get constraint function value for the flowsheets.
     Here there are two constraints: The material must not pre-
@@ -372,6 +373,10 @@ def get_constraints_values(flowsheet, layout=None, inputs=None):
     variables used for optimization and simulation that correspond
     to those described in the bounds.json file. keys are variable
     names
+    :param include_heptane_constraint: bool, default True. When False,
+    returns 0.0 as the second constraint value to match the NOMAD PB
+    configuration in commit 08fa115 (since VAP01 with 307.15 K utility
+    water reaches at most x_C7 = 0.693 across ratio_hept in [0.5, 4.0]).
 
     :return: con values, list, The values of [solub_con, x_C7_con]
     """
@@ -385,6 +390,8 @@ def get_constraints_values(flowsheet, layout=None, inputs=None):
     solub_path_con = path_constraint(timeVAP01, concVAP01[:, 4], y_ref=solub, sqrt=True)
 
     xliq_C7_con = 0.7 - xliqVAP01[-1, -1]
+    if not include_heptane_constraint:
+        return [solub_path_con, 0.0]
 
     return [solub_path_con, xliq_C7_con]
 

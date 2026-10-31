@@ -82,6 +82,69 @@ def test_simulation_data_files_exist_and_have_expected_schema() -> None:
     assert len(df_sorted) == 35
 
 
+def test_corrected_model_tables_and_discrete_ip_rankings() -> None:
+    """Verify the corrected-model PharmaPy tables, PyNomad results, and 36-solution IP rankings."""
+    import ast
+    import generate_corrected_model_tables as gcmt
+
+    corr_sim_dir = DATA_DIR / "corrected_model_pharmapy_current"
+    corr_dip_data = PROJECT_ROOT / "ds-mfg" / "discrete_ip" / "data" / "corrected_model_pharmapy_current"
+    corr_dip_res = PROJECT_ROOT / "ds-mfg" / "discrete_ip" / "result_corrected_model"
+
+    bundle = json.loads(
+        (corr_sim_dir / "all40_corrected_model_evaluation_and_nomad.json").read_text(encoding="utf-8")
+    )
+    assert len(bundle) == 40
+    for idx in range(40):
+        entry = bundle[str(idx)]
+        base = entry["baseline"]
+        opt = entry["optimized"]
+        assert base["success"] and opt["success"]
+        # PyNomad minimization objective must be <= baseline objective at optimal_points_2
+        assert opt["obj_val"] <= base["obj_val"] + 1e-12
+        assert opt["g1_solub_path_con"] <= 1e-9
+
+    # Verify all 36 two-reactor configurations are present (including #10 batch-PFR-batch-cont2)
+    df_nomad_sum = pd.read_csv(corr_sim_dir / "run_objmassprodcrys_sum_corrected_nomad.csv")
+    assert len(df_nomad_sum) == 36
+    assert not df_nomad_sum["Best Objective Value"].isna().any()
+    assert not df_nomad_sum["Total_CAPEX"].isna().any()
+    assert (df_nomad_sum["Best Objective Value"] > -1000.0).all()
+
+    # Verify exact empirical-mean derivation of legacy ssopt_gen_1.csv from legacy x_input_with_total_capex.csv
+    legacy_capex_df = pd.read_csv(DATA_DIR / "obj_mass_prod_crys" / "x_input_with_total_capex.csv")
+    legacy_records = [
+        {
+            "layout": ast.literal_eval(row["Combination"].replace("_ ", ", ")),
+            "equip_sizes": ast.literal_eval(row["CAPEX"]),
+        }
+        for _, row in legacy_capex_df.iterrows()
+    ]
+    reconstructed_legacy_ssopt = gcmt.compute_ssopt_table(legacy_records, use_turton_musd=False)
+    orig_ssopt = pd.read_csv(PROJECT_ROOT / "ds-mfg" / "discrete_ip" / "data" / "ssopt_gen_1.csv")
+    np.testing.assert_allclose(
+        reconstructed_legacy_ssopt["Flow Cost"].to_numpy(),
+        orig_ssopt["Flow Cost"].to_numpy(),
+        atol=1e-3,
+    )
+
+    # Verify corrected-model ssopt_gen_1_corrected_nomad.csv and 36-solution discrete IP ranking
+    corr_ssopt = pd.read_csv(corr_dip_data / "ssopt_gen_1_corrected_nomad.csv").set_index("Flow")
+    assert corr_ssopt.loc["f09", "Flow Cost"] == pytest.approx(6.5652, abs=1e-4)
+    assert corr_ssopt.loc["f16", "Flow Cost"] == pytest.approx(5.6054, abs=1e-4)
+    assert corr_ssopt.loc["f17", "Flow Cost"] == pytest.approx(6.1587, abs=1e-4)
+
+    ngc_nomad = json.loads(
+        (corr_dip_res / "nogoodcuts_corrected_nomad.json").read_text(encoding="utf-8")
+    )
+    assert len(ngc_nomad) == 36
+    ip_objs = [ngc_nomad[str(k)]["ip_obj_value"] for k in range(1, 37)]
+    assert all(ip_objs[i] <= ip_objs[i + 1] + 1e-9 for i in range(35))
+    assert ngc_nomad["1"]["operating_modes"] == ["batch", "batch", "batch", "batchU"]
+    assert ngc_nomad["1"]["ip_obj_value"] == pytest.approx(14.859)
+    assert ngc_nomad["1"]["sm_capex"] == pytest.approx(0.860833, rel=1e-4)
+
+
 def test_valid_combos_and_make_graph_cover_all_40_superstructure_layouts() -> None:
     """Verify the 40 valid superstructure layouts and their connectivity graphs."""
     assert len(gs.valid_combos) == 40

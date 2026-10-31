@@ -55,7 +55,12 @@ def bb(x):
 
             # Objective function is to minimize the captial cost
             # obj = get_objective_value_cost(flowsheet=flowsheet, layout=layout, inputs=input_dict)
-            [g1, g2] = get_constraints_values(flowsheet=flowsheet, layout=layout, inputs=input_dict)
+            [g1, g2] = get_constraints_values(
+                flowsheet=flowsheet,
+                layout=layout,
+                inputs=input_dict,
+                include_heptane_constraint=False,
+            )
         else:
             obj = 1e20
             g1 = 1e20
@@ -78,9 +83,17 @@ params = ["DIMENSION " + str(len(input_dict.keys())), "BB_OUTPUT_TYPE OBJ PB PB"
 def main():
     if PyNomad is None:
         raise ImportError("PyNomad is required to run NOMAD black-box optimization.")
-    x_return, f_return, h_return, nb_evals, nb_iters, stopflag, stop_reason = PyNomad.optimize(
+    nomad_res = PyNomad.optimize(
         bb, X0, [0.0] * len(X0), [1.0] * len(X0), params
     )
+    if isinstance(nomad_res, dict):
+        x_return = nomad_res.get("x_single_best")
+        f_return = nomad_res.get("f_single_best")
+        h_return = nomad_res.get("h_single_best")
+        nb_evals = nomad_res.get("nb_evals")
+        nb_iters = nomad_res.get("nb_iters")
+    else:
+        x_return, f_return, h_return, nb_evals, nb_iters, _, _ = nomad_res
     print(
         "\n NOMAD outputs \n X_sol={} \n F_sol={} \n H_sol={} \n NB_evals={} \n NB_iters={} \n".format(
             x_return, f_return, h_return, nb_evals, nb_iters
