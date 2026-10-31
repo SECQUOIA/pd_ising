@@ -1,3 +1,10 @@
+from pathlib import Path
+import sys
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
 from PharmaPy.Reactors import BatchReactor, CSTR, PlugFlowReactor, SemibatchReactor
 from PharmaPy.Evaporators import Evaporator
 from PharmaPy.SolidLiquidSep import Filter
@@ -87,7 +94,8 @@ def add_reactor(path=None, reactor_name=None, reactor_type=None,
         conc_in = np.array(conc_in)
         # Now define a new LiquidStream with no vol_flow argument
         dynamic_inlet = LiquidStream(path, temp=323.15,
-                                     mole_conc=conc_in, name_solv='THF')
+                                     mole_conc=conc_in, name_solv='THF',
+                                     check_input=False)
 
         # Define inlet_control as a dynamic output for dynamic flow
         inlet_control2 = DynamicInput()
@@ -212,7 +220,7 @@ def add_vaporizer(vaporizer_name=None, previous_batch=False, first_batch=False,
 
 def add_crystallizer(path=None, cryst_name=None, cryst_type=None,
                      inputs=None, first_batch=False, all_batch=False,
-                     sim_obj=None, runargs=None):
+                     sim_obj=None, runargs=None, use_batch_cycle_time=False):
     """
     Function to add crystallizers to the flowsheet. Here, there is either
     a batch crystallizer (only unseeded currently) or a train of MSMPRs.
@@ -296,11 +304,10 @@ def add_crystallizer(path=None, cryst_name=None, cryst_type=None,
                 vol_VAP01 = inputs['vol'] * factor
 
                 # Finding cycle time. Check if SB --> R02 doesn't exist!
-                try:
-                    time_R02 = inputs['time_R02']
-                except:
-                    time_R02 = 0.0
-                max(inputs['time_R01'], time_R02, inputs['time_VAP01'])
+                time_R02 = inputs.get('time_R02', 0.0)
+                batch_cycle_time = max(inputs['time_R01'], time_R02, inputs['time_VAP01'])
+                if use_batch_cycle_time:
+                    cycle_time = batch_cycle_time
             else:
                 vol_VAP01 = inputs['vol'] / inputs['time_R01'] * 10 * 3600.0 * factor
         else:

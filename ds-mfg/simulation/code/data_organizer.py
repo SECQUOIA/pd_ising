@@ -1,15 +1,18 @@
 from copy import deepcopy
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 
-from generating_structures import get_input_dictionary, make_graph, run_flowsheet
-from helper import translate_scale
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_DIR = SCRIPT_DIR.parent / "data"
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from generating_structures import get_input_dictionary, make_graph, run_flowsheet
+from helper import translate_scale
 
 
 def organize_capex_data(

@@ -1,25 +1,37 @@
-import PyNomad
-import numpy as np
-import sys
+from copy import deepcopy
 import json
+from pathlib import Path
+import sys
+
+import numpy as np
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+try:
+    import PyNomad
+except ImportError:  # pragma: no cover - PyNomad is only needed when running NOMAD optimization
+    PyNomad = None
+
 from generating_structures import (make_flowsheet, get_input_dictionary, get_constraints_values,
                                    get_objective_value, get_objective_value_cost, run_flowsheet, make_graph)
 from helper import translate_scale
-from copy import deepcopy
 
 
-with open('active_fs.txt') as f:
+with open(SCRIPT_DIR / 'active_fs.txt', encoding='utf-8') as f:
     choices = [i for i in f]
     layout = tuple(choices[0].split())
 
-with open('../data/bounds.json') as f:
+with open(DATA_DIR / 'bounds.json', encoding='utf-8') as f:
     all_vars = json.load(f)
 
 graph = make_graph(layout)
 bound_dict = get_input_dictionary(all_vars, layout)
 input_dict = deepcopy(bound_dict)
 
-path = '../data/compounds_lomustine.json'
+path = str(DATA_DIR / 'compounds_lomustine.json')
 
 
 # This example of blackbox function is for a single process
@@ -40,10 +52,15 @@ def bb(x):
         if success:
             # Objective function is to maximize mass_production_rate and crystal_size.
             obj = -get_objective_value(flowsheet=flowsheet, layout=layout, inputs=input_dict)
-       
+
             # Objective function is to minimize the captial cost
             # obj = get_objective_value_cost(flowsheet=flowsheet, layout=layout, inputs=input_dict)
-            [g1, g2] = get_constraints_values(flowsheet=flowsheet, layout=layout, inputs=input_dict)
+            [g1, g2] = get_constraints_values(
+                flowsheet=flowsheet,
+                layout=layout,
+                inputs=input_dict,
+                include_heptane_constraint=False,
+            )
         else:
             obj = 1e20
             g1 = 1e20
@@ -62,12 +79,30 @@ params = ["DIMENSION " + str(len(input_dict.keys())), "BB_OUTPUT_TYPE OBJ PB PB"
           "DISPLAY_DEGREE 2", "DISPLAY_ALL_EVAL true",
           "DISPLAY_STATS BBE OBJ CONS_H TIME"]
 
-x_return, f_return, h_return, nb_evals, nb_iters, stopflag, stop_reason = PyNomad.optimize(bb, X0, [0.0]*len(X0),
-                                                                              [1.0]*len(X0), params)
-print (
-    "\n NOMAD outputs \n X_sol={} \n F_sol={} \n H_sol={} \n NB_evals={} \n NB_iters={} \n".format(x_return, f_return,
-                                                                                                   h_return, nb_evals,
-                                                                                                   nb_iters))
+
+def main():
+    if PyNomad is None:
+        raise ImportError("PyNomad is required to run NOMAD black-box optimization.")
+    nomad_res = PyNomad.optimize(
+        bb, X0, [0.0] * len(X0), [1.0] * len(X0), params
+    )
+    if isinstance(nomad_res, dict):
+        x_return = nomad_res.get("x_single_best")
+        f_return = nomad_res.get("f_single_best")
+        h_return = nomad_res.get("h_single_best")
+        nb_evals = nomad_res.get("nb_evals")
+        nb_iters = nomad_res.get("nb_iters")
+    else:
+        x_return, f_return, h_return, nb_evals, nb_iters, _, _ = nomad_res
+    print(
+        "\n NOMAD outputs \n X_sol={} \n F_sol={} \n H_sol={} \n NB_evals={} \n NB_iters={} \n".format(
+            x_return, f_return, h_return, nb_evals, nb_iters
+        )
+    )
+
+
+if __name__ == '__main__':
+    main()
 # tee-command will help write/save the results (linux tee command)
-# python run_all_opts.py | tee log.txt 
+# python run_all_opts.py | tee log.txt
 # tee command will write the output of the command to the file log.txt

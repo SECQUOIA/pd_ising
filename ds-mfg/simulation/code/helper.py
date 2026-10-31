@@ -1,6 +1,17 @@
 import numpy as np
-from PharmaPy.Kinetics import RxnKinetics, CrystKinetics
-from PharmaPy.Commons import trapezoidal_rule
+
+try:
+    from PharmaPy.Kinetics import RxnKinetics, CrystKinetics
+    from PharmaPy.Commons import trapezoidal_rule
+except ImportError:  # pragma: no cover - allows non-PharmaPy utilities to import helper
+    RxnKinetics = None
+    CrystKinetics = None
+
+    def trapezoidal_rule(x, y):
+        if hasattr(np, "trapezoid"):
+            return np.trapezoid(y, x, axis=0)
+        return np.trapz(y, x, axis=0)
+
 
 
 def solub_fn(temp, conc=None, mole_frac=None):
@@ -199,4 +210,3 @@ def translate_scale(val, bounds):
     unscaled_val = (1 - val) * bounds[0] + val * bounds[1]
 
     return unscaled_val
-
