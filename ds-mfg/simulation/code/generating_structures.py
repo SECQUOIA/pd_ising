@@ -1,14 +1,33 @@
-from PharmaPy.SimExec import SimulationExec
-
-import json
-import itertools
 from copy import deepcopy
+import itertools
+import json
+from pathlib import Path
+import sys
 
-from make_units import add_reactor, add_vaporizer, add_crystallizer, add_filter, add_b2f, add_hold, add_mixer
+SCRIPT_DIR = Path(__file__).resolve().parent
+DATA_DIR = SCRIPT_DIR.parent / "data"
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+try:
+    from PharmaPy.SimExec import SimulationExec
+    from make_units import (
+        add_b2f,
+        add_crystallizer,
+        add_filter,
+        add_hold,
+        add_mixer,
+        add_reactor,
+        add_vaporizer,
+    )
+except ImportError:  # pragma: no cover - allows graph/bounds utilities without PharmaPy
+    SimulationExec = None
+    add_reactor = add_vaporizer = add_crystallizer = add_filter = None
+    add_b2f = add_hold = add_mixer = None
 
 from helper import path_constraint, translate_scale
 
-with open('../data/bounds.json') as f:
+with open(DATA_DIR / "bounds.json", encoding="utf-8") as f:
     all_vars = json.load(f)
 
 # All reactor operating mode options
@@ -27,7 +46,7 @@ UO_keys = {0: 'R01', 1: 'R02', 2: 'VAP01', 3: 'CR01'}
 all_combos = list(itertools.product(*[R01_opts, R02_opts, VAP01_opts, CR01_opts]))
 valid_combos = []
 
-path = '../data/compounds_lomustine.json'
+path = str(DATA_DIR / "compounds_lomustine.json")
 partic_species = ['ISO', 'CHA', 'interm', 'TBN', 'lom', 'TBA', 'SUB1']
 
 for i in all_combos:
@@ -141,6 +160,12 @@ def make_flowsheet(path=None, operating_vals=None, layout=None,
     :return: sim, SimulationExecutive object from PharmaPy. (The PharmaPy
     representation of the process that is described by the inputs)
     """
+    if SimulationExec is None:
+        raise ImportError("PharmaPy is required to build and solve flowsheets.")
+    if path is None:
+        path = str(DATA_DIR / "compounds_lomustine.json")
+    if graph is None:
+        graph = make_graph(layout)
     sim = SimulationExec(path, flowsheet=graph)
     runargs = {}
     split_graph = graph.split()
@@ -305,7 +330,7 @@ def get_objective_value_cost(flowsheet, layout=None, inputs=None):
 
     :return: objective value, float
     """
-    
+
     mass_out = flowsheet.F01.result.mass_cake_dry[-1]   # [kg]
 
     cycle_time = 10 * 3600.0    # [s]
@@ -322,7 +347,7 @@ def get_objective_value_cost(flowsheet, layout=None, inputs=None):
     mass_production = mass_out / (cycle_time + 1e-6)
 
     uo_capex = flowsheet.GetCAPEX()
-    total_capex = sum(uo_capex.values()) 
+    total_capex = sum(uo_capex.values())
     A = -1e3    # [$*s/kg]
     B = 1
 
@@ -361,7 +386,7 @@ def get_constraints_values(flowsheet, layout=None, inputs=None):
 
     xliq_C7_con = 0.7 - xliqVAP01[-1, -1]
 
-    return [solub_path_con, 0.0]
+    return [solub_path_con, xliq_C7_con]
 
 
 def run_flowsheet(path=None, inputs=None, layout=None, graph=None):
@@ -422,10 +447,36 @@ def get_mass_and_size(flowsheet, layout=None, inputs=None):
     return [mass_production, size]
 
 
+def load_optimal_points(
+    optimal_points_path=None,
+    pfr_points_path=None,
+    include_pfr_update=True,
+):
+    """Load normalized optimal decision points for all 40 valid configurations.
+
+    When ``include_pfr_update`` is True, indices 24..35 (where ``R01 == 'PFR'``)
+    are updated from ``optimal_points_2_PFR.json`` to match the published
+    ``optimal_mass_size_2_fixed.json`` benchmark.
+    """
+    if optimal_points_path is None:
+        optimal_points_path = DATA_DIR / "optimal_points_2.json"
+    with open(optimal_points_path, encoding="utf-8") as f:
+        all_optimals = json.load(f)
+
+    if include_pfr_update:
+        if pfr_points_path is None:
+            pfr_points_path = DATA_DIR / "optimal_points_2_PFR.json"
+        pfr_path = Path(pfr_points_path)
+        if pfr_path.exists():
+            with open(pfr_path, encoding="utf-8") as f:
+                pfr_optimals = json.load(f)
+            all_optimals.update(pfr_optimals)
+
+    return all_optimals
+
 
 if __name__ == '__main__':
-    with open('optimal_points_2.json') as f:
-        all_optimals = json.load(f)
+    all_optimals = load_optimal_points(include_pfr_update=True)
 
     mass_size = {}
     fs_counter = 0
@@ -433,7 +484,7 @@ if __name__ == '__main__':
         var_count = 0
         bound_dict = get_input_dictionary(all_vars, i)
         input_dict = deepcopy(bound_dict)
-        print(len(bound_dict.keys())) # decision variables? 
+        print(len(bound_dict.keys())) # decision variables?
         print(len(all_optimals[str(fs_counter)])) # matching optimal data?
         for j in input_dict.keys():
             input_dict[j] = translate_scale(float(all_optimals[str(fs_counter)][var_count]), bound_dict[j])
@@ -441,10 +492,10 @@ if __name__ == '__main__':
         graph = make_graph(i)
         test, runargs_out = make_flowsheet(path=path, operating_vals=input_dict, layout=i, graph=graph)
         test.SolveFlowsheet(runargs_out, verbose=False)
-        # try-except statement to catch any errors that may occur during the simulation and skip iterations 
+        # try-except statement to catch any errors that may occur during the simulation and skip iterations
 
         mass_size[fs_counter] = get_mass_and_size(test, layout=i, inputs=input_dict)
         fs_counter += 1
 
-    with open("optimal_mass_size_2_fixed.json", "w") as outfile:
+    with open(SCRIPT_DIR / "optimal_mass_size_2_fixed.json", "w", encoding="utf-8") as outfile:
         json.dump(mass_size, outfile)
